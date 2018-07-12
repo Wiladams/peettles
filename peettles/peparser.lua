@@ -329,8 +329,7 @@ function peparser.readDirectory_Export(self)
 
     -- We now know where the actual export table exists, so 
     -- create a binary stream, and position it at the offset
-    local ms = binstream(self._data, self._size, fileOffset, true)
-
+    local ms = self.SourceStream:range(dirTable.Size, fileOffset)
 
     -- We are now in position to read the actual export table data
     -- The data consists of various bits and pieces of information, including
@@ -608,11 +607,7 @@ function peparser.readDirectory_Import(self)
 end
 
 -- Read the resource directory
-    -- Reading the resource hierarchy is recursive
-    -- so , we define a function that will be called
-    -- recursively to traverse the entire hierarchy
-    -- Each time through, we keep track of the level, in case
-    -- we want to do something with that information.
+
 
 function peparser.readDirectory_Resource(self)
     -- lookup the entry for the resource directory
@@ -626,18 +621,26 @@ function peparser.readDirectory_Resource(self)
     local bs = self.SourceStream:range(dirTable.Size, resourcedirectoryOffset)
 
 
-    local function readResourceDirectory(bs, res, tab, level)
-        level = level or 0
-        res = res or {}
+    -- Reading the resource hierarchy is recursive
+    -- so , we define a function that will be called
+    -- recursively to traverse the entire hierarchy
+    -- Each time through, we keep track of the level, in case
+    -- we want to do something with that information.
+    local function readResourceDirectory(bs, res, level, tab)
+    
         --print(tab, "-- READ RESOURCE DIRECTORY")
+        level = level or 1
+        res = res or {
+            level = res.level or level;
+            isDirectory = true;
+        }
 
-            res.isDirectory = true;
-            res.Characteristics = bs:readUInt32();          -- 0
-            res.TimeDateStamp = bs:readUInt32();            -- 4
-            res.MajorVersion = bs:readUInt16();             -- 8
-            res.MinorVersion = bs:readUInt16();             -- 10
-            res.NumberOfNamedEntries = bs:readUInt16();     -- 12
-            res.NumberOfIdEntries = bs:readUInt16();        -- 14, 16
+        res.Characteristics = bs:readUInt32();          
+        res.TimeDateStamp = bs:readUInt32();            
+        res.MajorVersion = bs:readUInt16();             
+        res.MinorVersion = bs:readUInt16();            
+        res.NumberOfNamedEntries = bs:readUInt16();     
+        res.NumberOfIdEntries = bs:readUInt16();        
 
 
         res.Entries = {}
@@ -657,12 +660,10 @@ function peparser.readDirectory_Resource(self)
         -- go through them and perform a specific action for each based on what it is
         for i, entry in ipairs(res.Entries) do
             --print(tab, "ENTRY")
-            --local newentry = {}
             -- check to see if it's a string or an ID
             if band(entry.first, 0x80000000) ~= 0 then
-                --print(tab, " STRING")
                 -- bits 0-30 are an RVA to a UNICODE string
-                entry.Name = band(entry.first, 0x7fffffff)
+                entry.ID = band(entry.first, 0x7fffffff)
                 -- get RVA offset
                 -- local unilen = readUInt16();
                 -- readString(unilen)
@@ -680,7 +681,7 @@ function peparser.readDirectory_Resource(self)
                 local offset = band(entry.second, 0x7fffffff)
                 -- pointer to another image directory
                 bs:seek(offset)
-                readResourceDirectory(bs, entry, tab.."    ", level+1)
+                readResourceDirectory(bs, entry, level+1, tab.."    " )
             else
                 --print(tab, "  LEAF: ", entry.second)
                 -- we finally have actual data, so read the data entry
@@ -711,7 +712,7 @@ function peparser.readDirectory_Resource(self)
         return res;
     end
 
-    self.Resources = readResourceDirectory(bs, {}, "", 1);
+    self.Resources = readResourceDirectory(bs, {}, 0, "");
 end
 
 

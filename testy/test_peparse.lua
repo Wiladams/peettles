@@ -139,7 +139,12 @@ local function printExports(reader)
 
 	local res = reader.Export
 
-    print("        Export Flags: ", string.format("0x%08X", res.Characteristics))
+
+
+
+	print("        Export Flags: ", string.format("0x%08X", res.Characteristics))
+	print("     Time Date Stamp: ", string.format("0x%08X", res.TimeDateStamp))
+	print("             Version: ", string.format("%d.%2d", res.MajorVersion, res.MinorVersion))
     print("               nName: ", string.format("0x%08X",res.nName))
     print("         Module Name: ", res.ModuleName)
     print("        Ordinal Base: ", res.nBase)
@@ -196,9 +201,10 @@ local function printResources(info)
 	end
 
 	local function printDirectory(subdir, level)
-		level = level or 0
+		level = level or 1
 		printDebug(level, "SUBDIRECTORY")
 		printDebug(level, "   Is Directory: ", subdir.isDirectory)
+		printDebug(level, "             ID: ", subdir.ID);
 		printDebug(level, "Characteristics: ", subdir.Characteristics);
 		printDebug(level, "Time Date Stamp: ", subdir.TimeDateStamp);
 		printDebug(level, "        Version: ", subdir.MajorVersion, info.Resources.MinorVersion);
