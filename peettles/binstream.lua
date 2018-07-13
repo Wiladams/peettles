@@ -170,7 +170,7 @@ function binstream.readBytes(self, n, bytes)
         return false, nActual;
     end
 
-    return bytes;
+    return bytes, nActual;
 end
 
 -- Read a null terminated ASCIIZ string

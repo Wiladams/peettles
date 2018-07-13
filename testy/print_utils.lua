@@ -1,4 +1,5 @@
 
+
 -- print each line as:
 -- offset, Hex-16 digits, ASCII
 local function isprintable(c)
@@ -7,7 +8,7 @@ end
 
 local function printHex(ms, buffer, offsetbits, iterations)
     offsetbits = offsetbits or 32
-    --iterations = iterations or 1
+    buffer = buffer or ffi.new("uint8_t[?]", 16)
 
     if offsetbits == 32 then
         print("Offset (h)  00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F  Decoded text")
@@ -25,7 +26,11 @@ local function printHex(ms, buffer, offsetbits, iterations)
         end
 
         local sentinel = ms:tell();
-        local bytes = ms:readBytes(16, buffer);
+        local success, actualRead = ms:readBytes(16, buffer);
+
+        if not success then
+            if actualRead < 1 then break end
+        end
 
         if offsetbits > 32 then
             io.write(string.format("0x%016X: ", sentinel))
@@ -33,16 +38,17 @@ local function printHex(ms, buffer, offsetbits, iterations)
             io.write(string.format("0x%08X: ", sentinel))
         end
 
-        -- write 16 hex values
-        for i=0,15 do
-            io.write(string.format("%02X ", bytes[i]))
+        -- write actualRead hex values
+        for i=0,actualRead-1 do
+            --print(buffer, err)
+            io.write(string.format("%02X ", buffer[i]))
             if i == 7 then io.write(' '); end 
         end
         
         io.write(' ')
-        for i=0,15 do
-            if isprintable(bytes[i]) then
-                io.write(string.format("%c", bytes[i]))
+        for i=0,actualRead-1 do
+            if isprintable(buffer[i]) then
+                io.write(string.format("%c", buffer[i]))
             else
                 io.write('.')
             end
