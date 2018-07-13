@@ -66,26 +66,19 @@ local function IsPEFormatImageFile(sig)
         sig[3] == 0
 end
 
-local function IsPe32Header(sig)
-return sig[0] == 0x0b and sig[1] == 0x01
-end
 
-local function IsPe32PlusHeader(sig)
-return sig[0] == 0x0b and sig[1] == 0x02
-end
 
 --
--- Given an RVA, look up the section header that encloses it and return a
--- pointer to its IMAGE_SECTION_HEADER
+-- Given an RVA, look up the section header that encloses it 
+-- return the table that represents that section
 --
 function peparser.GetEnclosingSectionHeader(self, rva)
     --print("==== EnclosingSection: ", rva)
     for secname, section in pairs(self.Sections) do
         -- Is the RVA within this section?
-        --print(secname, section.VirtualAddress, section.VirtualAddress+section.VirtualSize)
         local pos = rva - section.VirtualAddress;
         if pos >= 0 and pos < section.VirtualSize then
-            -- return section, and the calculated fileoffset of the rva
+            -- return section, and the calculated offset within the section
             return section, pos 
         end
     end
@@ -97,68 +90,64 @@ end
 -- In order to translate this RVA into a file offset, we use the following
 -- function.
 function peparser.fileOffsetFromRVA(self, rva)
---print("==== fileOffsetFromRVA: ", rva)
-    local section = self:GetEnclosingSectionHeader( rva);
-    if not section then return false; end
+    local section, pos = self:GetEnclosingSectionHeader( rva);
+    if not section then return false, "section not found for rva"; end
 
-    local fileOffset = rva - section.VirtualAddress + section.PointerToRawData;
+    local fileOffset = pos + section.PointerToRawData;
 
     return fileOffset
 end
 
-function peparser.readDOSHeader(self)
-    local ms = self.SourceStream;
-    local e_magic = ms:readBytes(2);    -- Magic number, must be 'MZ'
-    
+function peparser.readDOSHeader(self, res)
     local function isValidDOS(bytes)
         return bytes[0] == string.byte('M') and
             bytes[1] == string.byte('Z')
     end
     
+    local ms = self.SourceStream;
+    local e_magic = ms:readBytes(2);    -- Magic number, must be 'MZ'
+
     if not isValidDOS(e_magic) then
         return false, "'MZ' signature not found", e_magic
     end
 
-    local res = {
-        e_magic = e_magic;                      -- Magic number
-        e_cblp = ms:readUInt16();               -- Bytes on last page of file
-        e_cp = ms:readUInt16();                 -- Pages in file
-        e_crlc = ms:readUInt16();               -- Relocations
-        e_cparhdr = ms:readUInt16();            -- Size of header in paragraphs
-        e_minalloc = ms:readUInt16();           -- Minimum extra paragraphs needed
-        e_maxalloc = ms:readUInt16();           -- Maximum extra paragraphs needed
-        e_ss = ms:readUInt16();                 -- Initial (relative) SS value
-        e_sp = ms:readUInt16();                 -- Initial SP value
-        e_csum = ms:readUInt16();               -- Checksum
-        e_ip = ms:readUInt16();                 -- Initial IP value
-        e_cs = ms:readUInt16();                 -- Initial (relative) CS value
-        e_lfarlc = ms:readUInt16();             -- File address of relocation table
-        e_ovno = ms:readUInt16();               -- Overlay number
+    local res = res or {}
+
+    res.e_magic = e_magic;                      -- Magic number
+    res.e_cblp = ms:readUInt16();               -- Bytes on last page of file
+    res.e_cp = ms:readUInt16();                 -- Pages in file
+    res.e_crlc = ms:readUInt16();               -- Relocations
+    res.e_cparhdr = ms:readUInt16();            -- Size of header in paragraphs
+    res.e_minalloc = ms:readUInt16();           -- Minimum extra paragraphs needed
+    res.e_maxalloc = ms:readUInt16();           -- Maximum extra paragraphs needed
+    res.e_ss = ms:readUInt16();                 -- Initial (relative) SS value
+    res.e_sp = ms:readUInt16();                 -- Initial SP value
+    res.e_csum = ms:readUInt16();               -- Checksum
+    res.e_ip = ms:readUInt16();                 -- Initial IP value
+    res.e_cs = ms:readUInt16();                 -- Initial (relative) CS value
+    res.e_lfarlc = ms:readUInt16();             -- File address of relocation table
+    res.e_ovno = ms:readUInt16();               -- Overlay number
         ms:skip(4*2);                           -- e_res, basetype="uint16_t", repeating=4},    -- Reserved s
-        e_oemid = ms:readUInt16();              -- OEM identifier (for e_oeminfo)
-        e_oeminfo = ms:readUInt16();            -- OEM information; e_oemid specific
+    res.e_oemid = ms:readUInt16();              -- OEM identifier (for e_oeminfo)
+    res.e_oeminfo = ms:readUInt16();            -- OEM information; e_oemid specific
         ms:skip(10*2);                          -- e_res2, basetype="uint16_t", repeating=10},  -- Reserved s
-        e_lfanew = ms:readUInt32();             -- File address of new exe header
-    }
-
-
+    res.e_lfanew = ms:readUInt32();             -- File address of new exe header
+    
     return res;
 end
 
-
-
-function peparser.readCOFF(self)
+function peparser.readCOFF(self, res)
+    
     local ms = self.SourceStream;
+    res = res or {}
 
-    local res = {
-        Machine = ms:readUInt16();
-        NumberOfSections = ms:readUInt16();     -- Windows loader limits to 96
-        TimeDateStamp = ms:readUInt32();
-        PointerToSymbolTable = ms:readUInt32();
-        NumberOfSymbols = ms:readUInt32();
-        SizeOfOptionalHeader = ms:readUInt16();
-        Characteristics = ms:readUInt16();
-    }
+    res.Machine = ms:readWORD();
+    res.NumberOfSections = ms:readWORD();     -- Windows loader limits to 96
+    res.TimeDateStamp = ms:readDWORD();
+    res.PointerToSymbolTable = ms:readDWORD();
+    res.NumberOfSymbols = ms:readDWORD();
+    res.SizeOfOptionalHeader = ms:readWORD();
+    res.Characteristics = ms:readWORD();
 
     return res;
 end
@@ -167,17 +156,20 @@ end
     In the context of a PEHeader, a directory is a simple
     structure containing a virtual address, and a size
 ]]
-local function readDirectory(ms, id)
-    local res = {
-        ID = id;
-        VirtualAddress = ms:readUInt32();   -- RVA
-        Size = ms:readUInt32();
-    }
+local function readDirectory(ms, id, res)
+    res = res or {}
+    
+    res.ID = id;
+    res.VirtualAddress = ms:readDWORD();
+    res.Size = ms:readDWORD();
 
     return res;
 end
 
--- List of directories in the order
+-- Within the context of the OptionalHeader
+-- Read the IMAGE_DATA_DIRECTORY entries
+function peparser.readDirectoryTable(self)
+    -- List of directories in the order
 -- they show up in the file
 local dirNames = {
     "ExportTable",
@@ -198,7 +190,6 @@ local dirNames = {
     "Reserved"
 }
 
-function peparser.readDirectoryTable(self)
     local ms = self.SourceStream;
     
     -- Read directory index entries
@@ -212,7 +203,7 @@ function peparser.readDirectoryTable(self)
 end
 
 function peparser.readPE32Header(self, ms)
-    print("==== readPE32Header ====")
+    --print("==== readPE32Header ====")
     local startOff = ms:tell();
 
     self.PEHeader = {
@@ -540,10 +531,8 @@ function peparser.readDirectory_Import(self)
             thunkRVA = thunkIATRVA
         end
 
-
 		if (thunkRVA ~= 0) then
             local thunkRVAOffset = self:fileOffsetFromRVA(thunkRVA);
---print(string.format("ThunkRVA: 0x%08X (0x%08X)", thunkRVA, ThunkArrayOffset))
 
             -- this will point to an array of IMAGE_THUNK_DATA objects
             -- so create a separate stream to read them
@@ -607,8 +596,6 @@ function peparser.readDirectory_Import(self)
 end
 
 -- Read the resource directory
-
-
 function peparser.readDirectory_Resource(self)
     -- lookup the entry for the resource directory
     local dirTable = self.PEHeader.Directories.ResourceTable
@@ -628,12 +615,12 @@ function peparser.readDirectory_Resource(self)
     -- we want to do something with that information.
     local function readResourceDirectory(bs, res, level, tab)
     
-        --print(tab, "-- READ RESOURCE DIRECTORY")
+        print(tab, "-- READ RESOURCE DIRECTORY")
         level = level or 1
-        res = res or {
-            level = res.level or level;
-            isDirectory = true;
-        }
+        res = res or {}
+
+        res.level = res.level or level;
+        res.isDirectory = true;
 
         res.Characteristics = bs:readUInt32();          
         res.TimeDateStamp = bs:readUInt32();            
@@ -786,13 +773,22 @@ function peparser.readPESignature(self)
 end
 
 function peparser.readPEOptionalHeader(self)
+    local function IsPe32Header(sig)
+        return sig[0] == 0x0b and sig[1] == 0x01
+    end
+        
+    local function IsPe32PlusHeader(sig)
+        return sig[0] == 0x0b and sig[1] == 0x02
+    end
+
     local ms = self.SourceStream;
 
 -- NOTE: Using the sizeOfOptionalHeader, and current offset
 -- we should be able to get a subrange of the stream to 
 -- read from.  Not currently doing it.
 
-    -- Read the 2 byte magic for the optional header
+    -- Read the 2 byte magic to figure out which kind
+    -- of optional header we need to read
     local pemagic = ms:readBytes(2);
     --print(string.format("PEMAGIC: 0x%x 0x%x", pemagic[0], pemagic[1]))
 

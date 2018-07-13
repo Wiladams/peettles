@@ -15,5 +15,5 @@ local bs = binstream(bytes, byteSize, 0, true)
 local rs = bs:range(10,10)
 print("RS Big Endian: ", rs.bigend)
 for i=1,10 do
-    print("Range: ", rs:read8())
+    print("Range: ", rs:readOctet())
 end

@@ -12,6 +12,11 @@ Microsoft Documentation
 * https://msdn.microsoft.com/library/windows/desktop/ms680547(v=vs.85).aspx
 * https://msdn.microsoft.com/en-us/library/ms809762.aspx
 
+Sysinternals
+
+https://docs.microsoft.com/en-us/sysinternals/
+
+
 Other Stuff
 
 * http://net.pku.edu.cn/~course/cs201/2003/mirrorWebster.cs.ucr.edu/Page_TechDocs/pe.txt
@@ -19,6 +24,10 @@ Other Stuff
 * http://www.osdever.net/documents/PECOFF.pdf
 * http://www.pelib.com/resources/kath.txt
 * https://resources.infosecinstitute.com/complete-tour-of-pe-and-elf-part-1/#article
+
+Crash Dumps
+
+https://code.google.com/archive/p/volatility/wikis/CrashAddressSpace.wiki
 
 Pretty Pictures
 

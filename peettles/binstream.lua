@@ -111,7 +111,7 @@ end
 
 
 -- get 8 bits, and advance the cursor
-function binstream.read8(self)
+function binstream.readOctet(self)
     --print("self.cursor: ", self.cursor, self.size)
     if (self.cursor >= self.size) then
        return false, "EOF";
@@ -135,12 +135,12 @@ function binstream.read(self, n)
 
     if self.bigend then
         while  (i < n) do
-            v = bor(lshift(v, 8), self:read8());
+            v = bor(lshift(v, 8), self:readOctet());
             i = i + 1;
         end 
     else
         while  (i < n) do
-            v = bor(v, lshift(self:read8(), 8*i));
+            v = bor(v, lshift(self:readOctet(), 8*i));
             i = i + 1;
         end 
     end
@@ -182,7 +182,7 @@ function binstream.readASCIIZ(self, n)
     local bytes = ffi.new("uint8_t[?]", n+1)
 
     for i=1,n do
-        local byte = self:read8();
+        local byte = self:readOctet();
         bytes[i-1] = byte
 
         if byte == 0 then break end
@@ -250,13 +250,13 @@ function binstream.readUInt64(self)
 --print("==== readUInt64 ====")
     if self.bigend then
         while  (i < 8) do
-            v = bor(lshift(v, 8), self:read8());
+            v = bor(lshift(v, 8), self:readOctet());
             i = i + 1;
         end 
     else
         --print("LITTLE")
         while  (i < 8) do
-            local byte = ffi.cast("uint64_t",self:read8());
+            local byte = ffi.cast("uint64_t",self:readOctet());
             local shifted = lshift(byte, 8*i)
             --v = v + shifted
             v = bor(v, lshift(byte, 8*i));
@@ -299,5 +299,8 @@ binstream.readFWord = binstream.readInt16;
 binstream.readUFWord = binstream.readUInt16;
 binstream.readOffset16 = binstream.readUInt16;
 binstream.readOffset32 = binstream.readUInt32;
+binstream.readWORD = binstream.readUInt16;
+binstream.readDWORD = binstream.readUInt32;
+binstream.readBYTE = binstream.readOctet;
 
 return binstream
