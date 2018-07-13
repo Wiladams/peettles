@@ -67,7 +67,6 @@ local function IsPEFormatImageFile(sig)
 end
 
 
-
 --
 -- Given an RVA, look up the section header that encloses it 
 -- return the table that represents that section
@@ -730,15 +729,15 @@ function peparser.readSectionHeaders(self)
     for i=1,nsections do
         local sec = {
             Name = ms:readBytes(8);
-            VirtualSize = ms:readNumber(4);
-            VirtualAddress = ms:readNumber(4);
-            SizeOfRawData = ms:readNumber(4);
-            PointerToRawData = ms:readNumber(4);
-            PointerToRelocations = ms:readNumber(4);
-            PointerToLinenumbers = ms:readNumber(4);
-            NumberOfRelocations = ms:readNumber(2);
-            NumberOfLinenumbers = ms:readNumber(2);
-            Characteristics = ms:readUInt32();
+            VirtualSize = ms:readDWORD();
+            VirtualAddress = ms:readDWORD();
+            SizeOfRawData = ms:readDWORD();
+            PointerToRawData = ms:readDWORD();
+            PointerToRelocations = ms:readDWORD();
+            PointerToLinenumbers = ms:readDWORD();
+            NumberOfRelocations = ms:readWORD();
+            NumberOfLinenumbers = ms:readWORD();
+            Characteristics = ms:readDWORD();
         }
 
         -- NOTE: Not sure if we should use all 8 bytes or null terminate
