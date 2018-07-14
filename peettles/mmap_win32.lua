@@ -18,43 +18,11 @@ local ffi = require "ffi"
 local C = ffi.C
 local bit = require "bit"
 
-local _WIN64 = (ffi.os == "Windows") and ffi.abi("64bit");
+require("peettles.w32")
 
 
-ffi.cdef[[
-	typedef char		CHAR;
-	typedef int			BOOL;
-	typedef int16_t		SHORT;
-	typedef uint32_t	DWORD;
-	typedef int32_t		LONG;
-	typedef int64_t		LONGLONG;
-	typedef void *		PVOID;
 
-    typedef PVOID          HANDLE;
-    typedef void *			LPVOID;
-    typedef const void *	LPCVOID;
-    typedef DWORD *			LPDWORD;
-	typedef const char *	LPCSTR;
-]]
 
-if _WIN64 then
-ffi.cdef[[
-	typedef int64_t		INT_PTR;
-	typedef int64_t		LONG_PTR, *PLONG_PTR;
-	typedef uint64_t	ULONG_PTR, *PULONG_PTR;
-]]
-else
-ffi.cdef[[
-	typedef int 			INT_PTR;
-	typedef long			LONG_PTR, *PLONG_PTR;
-    typedef unsigned long   ULONG_PTR, *PULONG_PTR;
-]]
-end
-
-ffi.cdef[[
-    typedef ULONG_PTR		SIZE_T, *PSIZE_T;
-    typedef LONG_PTR        SSIZE_T, *PSSIZE_T;
-]]
 
 ffi.cdef[[
     // Basic file handling
@@ -123,10 +91,6 @@ local PAGE_READWRITE        = 0x4
 
 
 
-
-local INVALID_HANDLE_VALUE = ffi.cast("HANDLE",ffi.cast("LONG_PTR",-1));
-
---print("INVALID_HANDLE_VALUE: ", INVALID_HANDLE_VALUE)
 
 local mmap = {}
 mmap.__index = mmap
