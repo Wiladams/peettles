@@ -1,4 +1,4 @@
-package.path = package.path..";../?.lua"
+package.path = "../?.lua;"..package.path
 
 local ffi = require("ffi")
 local bit = require("bit")
@@ -8,6 +8,7 @@ local peinfo = require("peettles.peparser")
 local peenums = require("peettles.penums")
 local mmap = require("peettles.mmap_win32")
 local binstream = require("peettles.binstream")
+local putils = require("print_utils")
 
 
 local filename = arg[1];
@@ -200,14 +201,27 @@ local function printResources(info)
 		print(...)
 	end
 
+	local function printResourceData(entry)
+		local buffer = ffi.new("uint8_t[?]", 16)
+
+		-- get file offset for DataRVA
+		local dataOffset = info:fileOffsetFromRVA(entry.DataRVA)
+		local dataSize = entry.Size;
+		--local bs = binstream(info.SourceStream._data, info.SourceStream._size, dataOffset, true);
+		local bs = info.SourceStream:range(dataSize, dataOffset);
+		-- print in hex
+		putils.printHex(bs, buffer)
+	end
+
 	local function printDirectory(subdir, level)
 		level = level or 1
 		printDebug(level, "SUBDIRECTORY")
+		printDebug(level, "          Level: ", subdir.level)
 		printDebug(level, "   Is Directory: ", subdir.isDirectory)
 		printDebug(level, "             ID: ", subdir.ID);
 		printDebug(level, "Characteristics: ", subdir.Characteristics);
 		printDebug(level, "Time Date Stamp: ", subdir.TimeDateStamp);
-		printDebug(level, "        Version: ", subdir.MajorVersion, info.Resources.MinorVersion);
+		printDebug(level, "        Version: ", string.format("%d.%02d", subdir.MajorVersion, info.Resources.MinorVersion));
 		printDebug(level, "  Named Entries: ", subdir.NumberOfNamedEntries);
 		printDebug(level, "     Id Entries: ", subdir.NumberOfIdEntries);
 		printDebug(level, "  == Entries ==")
@@ -217,10 +231,12 @@ local function printResources(info)
 				if entry.isDirectory then
 					printDirectory(entry, level+1);
 				elseif entry.isData then
-				printDebug(level, "    DataRVA: ", string.format("0x%08X", entry.DataRVA));
-				printDebug(level, "       Size: ",entry.Size);
-				printDebug(level, "  Code Page: ", entry.CodePage);
-				printDebug(level, "   Reserved: ", entry.Reserved);
+					printDebug(level, "    DataRVA: ", string.format("0x%08X", entry.DataRVA));
+					printDebug(level, "       Size: ",entry.Size);
+					printDebug(level, "  Code Page: ", entry.CodePage);
+					printDebug(level, "   Reserved: ", entry.Reserved);
+
+					printResourceData(entry);
 				end
 			end
 		end

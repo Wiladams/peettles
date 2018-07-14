@@ -614,9 +614,11 @@ function peparser.readDirectory_Resource(self)
     -- we want to do something with that information.
     local function readResourceDirectory(bs, res, level, tab)
     
-        print(tab, "-- READ RESOURCE DIRECTORY")
         level = level or 1
         res = res or {}
+        
+        print(tab, "-- READ RESOURCE DIRECTORY")
+
 
         res.level = res.level or level;
         res.isDirectory = true;
@@ -645,7 +647,7 @@ function peparser.readDirectory_Resource(self)
         -- Now that we have all the entries (IMAGE_RESOURCE_DIRECTORY_ENTRY)
         -- go through them and perform a specific action for each based on what it is
         for i, entry in ipairs(res.Entries) do
-            --print(tab, "ENTRY")
+            print(tab, "ENTRY")
             -- check to see if it's a string or an ID
             if band(entry.first, 0x80000000) ~= 0 then
                 -- bits 0-30 are an RVA to a UNICODE string
@@ -699,6 +701,8 @@ function peparser.readDirectory_Resource(self)
     end
 
     self.Resources = readResourceDirectory(bs, {}, 0, "");
+
+    return self.Resources;
 end
 
 
@@ -707,7 +711,10 @@ function peparser.readDirectoryData(self)
     
     self:readDirectory_Export();
     self:readDirectory_Import();
-    self:readDirectory_Resource();
+    local success, err = self:readDirectory_Resource()
+    if not success then
+        print("Error from readDirectory_Resource: ", err)
+    end
 end
 
 local function stringFromBuff(buff, size)
