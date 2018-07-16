@@ -19,6 +19,8 @@ local band = bit.band;
 local binstream = require("peettles.binstream")
 local peenums = require("peettles.penums")
 
+local parse_exports = require("peettles.parse_exports")
+
 
 local peparser = {}
 setmetatable(peparser, {
@@ -297,168 +299,6 @@ function peparser.readPE32PlusHeader(self, ms)
     return self.PEHeader;
 end
 
-
-function peparser.readDirectory_Export(self)
-    --print("==== readDirectory_Export ====")
-    local dirTable = self.PEHeader.Directories.ExportTable
-    if not dirTable then 
-        print("NO EXPORT TABLE")
-        return false 
-    end
-
-    -- If the virtual address is zero, then we don't actually
-    -- have any exports
-    if dirTable.VirtualAddress == 0 then
-        print("  No Virtual Address")
-        return false;
-    end
-
-    -- We use the directory entry to lookup the actual export table.
-    -- We need to turn the VirtualAddress into an actual file offset
-    local fileOffset = self:fileOffsetFromRVA(dirTable.VirtualAddress)
-
-    -- We now know where the actual export table exists, so 
-    -- create a binary stream, and position it at the offset
-    local ms = self.SourceStream:range(dirTable.Size, fileOffset)
-
-    -- We are now in position to read the actual export table data
-    -- The data consists of various bits and pieces of information, including
-    -- pointers to the actual export information.
-    self.Export = {    
-        Characteristics = ms:readUInt32();
-        TimeDateStamp = ms:readUInt32();
-        MajorVersion = ms:readUInt16();
-        MinorVersion = ms:readUInt16();
-        nName = ms:readUInt32();                -- Relative to image base
-        nBase = ms:readUInt32();
-        NumberOfFunctions = ms:readUInt32();
-        NumberOfNames = ms:readUInt32();
-        AddressOfFunctions = ms:readUInt32();
-        AddressOfNames = ms:readUInt32();
-        AddressOfNameOrdinals = ms:readUInt32();
-    }
-    local res = self.Export;
-
-    -- Get the internal name of the module
-    local nNameOffset = self:fileOffsetFromRVA(res.nName)
-    if nNameOffset then
-        -- use a separate stream to read the string so we don't
-        -- upset the positioning on the one that's reading
-        -- the import descriptors
-        local ns = binstream(self._data, self._size, nNameOffset, true)
-        self.Export.ModuleName = ns:readString();
-        self.ModuleName = self.Export.ModuleName;
-
-        --print("Module Name: ", res.ModuleName)
-    end 
-
-    -- Get the function pointers
-    --local EATable = {}  -- ffi.new("uint32_t[?]", res.NumberOfFunctions)
-    self.Export.AllFunctions = {};
-    if res.NumberOfFunctions > 0 then
-        local EATOffset = self:fileOffsetFromRVA(res.AddressOfFunctions);
-        local EATStream = binstream(self._data, self._size, EATOffset, true);
-
-        --print("EATOffset: ", string.format("0x%08X", EATOffset))
-
-        -- Get array of function pointers
-        -- EATable represents a '0' based array of these function RVAs
-        for i=0, res.NumberOfFunctions-1 do 
-            local AddressRVA = EATStream:readUInt32()
-            
-            --print("----------------")
-            --print("    AddressRVA: ", string.format("0x%08X",AddressRVA));
-            if AddressRVA ~= 0 then
-                local section = self:GetEnclosingSectionHeader(AddressRVA)
-                local ExportOffset = self:fileOffsetFromRVA(AddressRVA)
-
-                -- We use the AddressRVA to figure out which section the function
-                -- body is located in.  If that section is not a code section, then
-                -- the RVA is actually a pointer to a string, which is a forward
-                -- reference to a function in another .dll
-                
-                -- To figure out whether the section pointed to has code or not, 
-                -- we can use the name '.text', or '.code'
-                -- but, a better approach is to use the peenums.SectionCharacteristics
-                -- and look for IMAGE_SCN_MEM_EXECUTE, IMAGE_SCN_MEM_READ and IMAGE_SCN_CNT_CODE
-                if section then
-                    --print("   Section Name: ", section.Name)
-                    -- Check to see if the section the RVA points to is actually
-                    -- a code section.  If it is, then save the Address
-                    if band(section.Characteristics, peenums.SectionCharacteristics.IMAGE_SCN_MEM_EXECUTE) ~= 0 and
-                        band(section.Characteristics, peenums.SectionCharacteristics.IMAGE_SCN_MEM_READ)~=0  and
-                        band(section.Characteristics, peenums.SectionCharacteristics.IMAGE_SCN_CNT_CODE)~=0 then
-
-                        self.Export.AllFunctions[i] = AddressRVA;
-                    else
-                        -- If not a code section, then it must be a forwarder
-                        local ForwardStream = binstream(self._data, self._size, ExportOffset, true)
-                        local forwardName = ForwardStream:readString();
-                        --print("FORWARD: ", forwardName)
-                        self.Export.AllFunctions[i] = forwardName;
-                    end
-                else
-                    print("NO SECTION FOUND for AdressRVA:  ", i)
-                end
-            else
-                --EATable[i] = false;
-            end
-        end
-    end
-
-    -- Get the names if the Names array exists
-    self.Export.NamedFunctions = {}
-    if res.NumberOfNames > 0 then
-        local ENTOffset = self:fileOffsetFromRVA(res.AddressOfNames)
-        local ENTStream = binstream(self._data, self._size, ENTOffset, true);
-
-        -- Setup a stream for the AddressOfNameOrdinals (EOT) table
-        local EOTOffset = self:fileOffsetFromRVA(res.AddressOfNameOrdinals);
-        local EOTStream = binstream(self._data, self._size, EOTOffset, true);
-
-        -- create a stream we'll use repeatedly to read name values
-        local nameStream = binstream(self._data, self._size, 0, true);
-        
-        for i=1, res.NumberOfNames do
-            -- create a stream pointing at the specific name
-            local nameRVA = ENTStream:readUInt32();
-            local nameOffset = self:fileOffsetFromRVA(nameRVA)
-            nameStream:seek(nameOffset)
-
-            local name = nameStream:readString();
-            local hint = EOTStream:readUInt16();
-            local ordinal = hint + res.nBase;
-            local index = hint;
-            --local funcptr = self.Export.AllFunctions[ordinal];
-            local funcptr = self.Export.AllFunctions[index];
-
-            --print("  name: ", ordinal, name)
-            table.insert(self.Export.NamedFunctions, {name = name, hint=hint, ordinal = ordinal , index = index, funcptr=funcptr})
-        end
-    end
-
-    -- Last list, functions exported by ordinal only
-    local function nameByIndex(index)
-        for i, entry in ipairs(self.Export.NamedFunctions) do
-            if entry.index == index then
-                return entry;
-            end
-        end
-        return false;
-    end
-
-    self.Export.OrdinalOnly = {}
-    for index, value in pairs(self.Export.AllFunctions) do
-        if not nameByIndex(index) then
-            self.Export.OrdinalOnly[index] = value;
-        end
-	end
-
-    return self.Export;
-end
-
-
-
 function peparser.readDirectory_Import(self)
 
     --print("==== readDirectory_Import ====")
@@ -617,10 +457,10 @@ function peparser.readDirectory_Resource(self)
         level = level or 1
         res = res or {}
         
-        print(tab, "-- READ RESOURCE DIRECTORY")
+        --print(tab, "-- READ RESOURCE DIRECTORY")
+        --print(tab, "LEVEL: ", level)
 
 
-        res.level = res.level or level;
         res.isDirectory = true;
 
         res.Characteristics = bs:readUInt32();          
@@ -633,11 +473,12 @@ function peparser.readDirectory_Resource(self)
 
         res.Entries = {}
 
+
         local cnt = 0;
         while (cnt < res.NumberOfNamedEntries + res.NumberOfIdEntries) do
             local entry = {
-                first = bs:readUInt32();
-                second = bs:readUInt32();
+                Name = bs:readUInt32();
+                OffsetToData = bs:readUInt32();
             }
             table.insert(res.Entries, entry)
             cnt = cnt + 1;
@@ -647,35 +488,53 @@ function peparser.readDirectory_Resource(self)
         -- Now that we have all the entries (IMAGE_RESOURCE_DIRECTORY_ENTRY)
         -- go through them and perform a specific action for each based on what it is
         for i, entry in ipairs(res.Entries) do
-            print(tab, "ENTRY")
+            --print(tab, "ENTRY")
             -- check to see if it's a string or an ID
-            if band(entry.first, 0x80000000) ~= 0 then
+            if band(entry.Name, 0x80000000) ~= 0 then
                 -- bits 0-30 are an RVA to a UNICODE string
-                entry.ID = band(entry.first, 0x7fffffff)
-                -- get RVA offset
-                -- local unilen = readUInt16();
-                -- readString(unilen)
+                -- get RVA offset, not really RVA, but offset 
+                -- from start of current section?
+                local unirva = band(entry.Name, 0x7fffffff)
+
+                --local unilen = ns:readUInt16();
+                --local uniname = readUNICODEString(unilen)
                 -- convert unicode to ASCII
+                --entry.ID = asciiname;
+                entry.ID = unirva
+                --print(tab, "NAMED ID: ", entry.ID)
             else
-                --print(tab, "  ID: ", string.format("0x%x", entry.first))
-                entry.ID = entry.first;
+                --print(tab, "  ID: ", string.format("0x%x", entry.Name))
+                entry.ID = entry.Name;
             end
 
-            -- entry.second determines whether we're going after
+            -- It is Microsoft convention to used the 
+            -- first three levels to indicate: resource type, ID, language ID
+            if level == 1 then
+                entry.Kind = entry.ID;
+                --print(tab, "    Entry ID (KIND): ", entry.ID, peenums.ResourceTypes[entry.ID])
+            elseif level == 2 then
+                entry.ItemID = entry.ID;
+                --print(tab, "    Entry ID (NAME): ", entry.ID)
+            elseif level == 3 then
+                entry.LanguageID = entry.ID;
+                --print(tab, "Entry ID (LANGUAGE): ", entry.ID)
+            end
+
+            -- entry.OffsetToData determines whether we're going after
             -- a leaf node, or just another directory
-            --print(tab, "  SECOND: ", string.format("0x%x", entry.second), band(entry.second, 0x80000000))
-            if band(entry.second, 0x80000000) ~= 0 then
+            --print(tab, "  OffsetToData: ", string.format("0x%x", entry.OffsetToData), band(entry.OffsetToData, 0x80000000))
+            if band(entry.OffsetToData, 0x80000000) ~= 0 then
                 --print(tab, "  DIRECTORY")
-                local offset = band(entry.second, 0x7fffffff)
+                local offset = band(entry.OffsetToData, 0x7fffffff)
                 -- pointer to another image directory
                 bs:seek(offset)
                 readResourceDirectory(bs, entry, level+1, tab.."    " )
             else
-                --print(tab, "  LEAF: ", entry.second)
+                --print(tab, "  LEAF: ", entry.OffsetToData)
                 -- we finally have actual data, so read the data entry
-                -- entry.second is an offset from start of root directory
+                -- entry.OffsetToData is an offset from start of root directory
                 -- seek to the offset, and start reading
-                bs:seek(entry.second)
+                bs:seek(entry.OffsetToData)
 
                 entry.isData = true;
                 entry.DataRVA = bs:readUInt32();
@@ -700,7 +559,7 @@ function peparser.readDirectory_Resource(self)
         return res;
     end
 
-    self.Resources = readResourceDirectory(bs, {}, 0, "");
+    self.Resources = readResourceDirectory(bs, {}, 1, "");
 
     return self.Resources;
 end
@@ -709,7 +568,11 @@ end
 function peparser.readDirectoryData(self)
     self.Directories = self.Directories or {}
     
-    self:readDirectory_Export();
+    local success, err = parse_exports(self);
+    if success then
+        self.Export = success;
+    end
+
     self:readDirectory_Import();
     local success, err = self:readDirectory_Resource()
     if not success then

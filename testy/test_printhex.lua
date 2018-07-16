@@ -1,7 +1,7 @@
 package.path = package.path..";../?.lua"
 
 local ffi = require("ffi")
-local putils = require("print_utils")
+local putils = require("peettles.print_utils")
 
 local mmap = require("peettles.mmap_win32")
 local binstream = require("peettles.binstream")
@@ -24,7 +24,7 @@ local function main(filename)
 
     local ms = binstream(mfile:getPointer(), mfile.size)
 
-    putils.printHex(ms, nil, 32, 256)
+    putils.printHex {stream = ms, offsetbits = 32, iterations = 256}
 end
 
 main(arg[1])

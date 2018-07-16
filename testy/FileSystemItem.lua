@@ -343,8 +343,6 @@ function FileSystemItem.streams(self)
 	local firstone = true;
 	local fsHandle = FsHandles.FsFindFileHandle(rawHandle);
 
-	--print("streams, rawHandle: ", rawHandle, rawHandle == INVALID_HANDLE);
-
 	local closure = function()
 		if not fsHandle:isValid() then return nil; end
 

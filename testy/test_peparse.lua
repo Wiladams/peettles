@@ -8,7 +8,7 @@ local peinfo = require("peettles.peparser")
 local peenums = require("peettles.penums")
 local mmap = require("peettles.mmap_win32")
 local binstream = require("peettles.binstream")
-local putils = require("print_utils")
+local putils = require("peettles.print_utils")
 
 
 local filename = arg[1];
@@ -236,7 +236,7 @@ local function printResources(info)
 					printDebug(level, "  Code Page: ", entry.CodePage);
 					printDebug(level, "   Reserved: ", entry.Reserved);
 
-					printResourceData(entry);
+					--printResourceData(entry);
 				end
 			end
 		end

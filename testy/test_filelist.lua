@@ -9,6 +9,9 @@ local argv = {...}
 local basepath = argv[1] or ".";
 local filename = argv[2];
 
+print("Basepath: ", basepath)
+print("Filename: ", filename)
+
 local wfs = FileSystem(basepath);
 
 local function test_single()
@@ -24,7 +27,7 @@ local function test_single()
 end
 
 local function test_multiple()
-	for entry in wfs:getItems(filename) do
+	for entry in wfs:getItems(basepath) do
 		print(entry.Name);
 	end
 end
@@ -38,5 +41,5 @@ local function list_directories()
 end
 
 --test_single();
---test_multiple();
-list_directories();
+test_multiple();
+--list_directories();
