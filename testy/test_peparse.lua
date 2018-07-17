@@ -120,9 +120,9 @@ end
 
 local function printImports(reader)
 	print("===== IMPORTS =====")
-	if not reader.Imports then return ; end
+	if not reader.Import then return false, "No Imports"; end
 
-	for k,v in pairs(reader.Imports) do
+	for k,v in pairs(reader.Import) do
 		print(k)
 		for i, name in ipairs(v) do
 			print(string.format("    %s",name))
@@ -155,6 +155,7 @@ local function printExports(reader)
     print("      AddressOfNames: ", string.format("0x%08X",res.AddressOfNames));
     print("AddressOfNameOrdinals: ", string.format("0x%08X", res.AddressOfNameOrdinals));
 
+	--[[
 	print(" = All Functions =")
 	for k,v in pairs(reader.Export.AllFunctions) do
 		if tonumber(v) then
@@ -163,6 +164,7 @@ local function printExports(reader)
 			print(k, v)
 		end
 	end
+--]]
 
 	print(" = Ordinal Only = ")
 	for k,v in pairs(reader.Export.OrdinalOnly) do
@@ -219,6 +221,17 @@ local function printResources(info)
 		printDebug(level, "          Level: ", subdir.level)
 		printDebug(level, "   Is Directory: ", subdir.isDirectory)
 		printDebug(level, "             ID: ", subdir.ID);
+		
+		-- It is Microsoft convention to used the 
+        -- first three levels to indicate: resource type, ID, language ID
+        if subdir.level == 1 then
+			printDebug(level, "    Entry ID (KIND): ", subdir.Kind, peenums.ResourceTypes[subdir.Kind])
+        elseif subdir.level == 2 then
+			printDebug(level, "    Entry ID (NAME): ", subdir.ItemID)
+        elseif subdir.level == 3 then
+			printDebug(level, "Entry ID (LANGUAGE): ", subdir.LanguageID)
+		end
+
 		printDebug(level, "Characteristics: ", subdir.Characteristics);
 		printDebug(level, "Time Date Stamp: ", subdir.TimeDateStamp);
 		printDebug(level, "        Version: ", string.format("%d.%02d", subdir.MajorVersion, info.Resources.MinorVersion));

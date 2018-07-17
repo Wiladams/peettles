@@ -20,6 +20,7 @@ local binstream = require("peettles.binstream")
 local peenums = require("peettles.penums")
 
 local parse_exports = require("peettles.parse_exports")
+local parse_imports = require("peettles.parse_imports")
 
 
 local peparser = {}
@@ -299,6 +300,7 @@ function peparser.readPE32PlusHeader(self, ms)
     return self.PEHeader;
 end
 
+--[=[
 function peparser.readDirectory_Import(self)
 
     --print("==== readDirectory_Import ====")
@@ -433,6 +435,7 @@ function peparser.readDirectory_Import(self)
 
     return res;
 end
+--]=]
 
 -- Read the resource directory
 function peparser.readDirectory_Resource(self)
@@ -462,7 +465,7 @@ function peparser.readDirectory_Resource(self)
 
 
         res.isDirectory = true;
-
+        res.level = level;
         res.Characteristics = bs:readUInt32();          
         res.TimeDateStamp = bs:readUInt32();            
         res.MajorVersion = bs:readUInt16();             
@@ -490,6 +493,8 @@ function peparser.readDirectory_Resource(self)
         for i, entry in ipairs(res.Entries) do
             --print(tab, "ENTRY")
             -- check to see if it's a string or an ID
+            entry.level = level;
+
             if band(entry.Name, 0x80000000) ~= 0 then
                 -- bits 0-30 are an RVA to a UNICODE string
                 -- get RVA offset, not really RVA, but offset 
@@ -573,7 +578,12 @@ function peparser.readDirectoryData(self)
         self.Export = success;
     end
 
-    self:readDirectory_Import();
+    success, err = parse_imports(self);
+    if success then
+        self.Import = success;
+    end
+
+
     local success, err = self:readDirectory_Resource()
     if not success then
         print("Error from readDirectory_Resource: ", err)
