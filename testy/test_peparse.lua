@@ -120,9 +120,9 @@ end
 
 local function printImports(reader)
 	print("===== IMPORTS =====")
-	if not reader.Import then return false, "No Imports"; end
+	if not reader.Imports then return false, "No Imports"; end
 
-	for k,v in pairs(reader.Import) do
+	for k,v in pairs(reader.Imports) do
 		print(k)
 		for i, name in ipairs(v) do
 			print(string.format("    %s",name))
@@ -133,12 +133,12 @@ end
 
 local function printExports(reader)
 	print("===== EXPORTS =====")
-	if (not reader.Export) then
+	if (not reader.Exports) then
 		print("  NO EXPORTS")
 		return ;
 	end
 
-	local res = reader.Export
+	local res = reader.Exports
 
 
 
@@ -167,7 +167,7 @@ local function printExports(reader)
 --]]
 
 	print(" = Ordinal Only = ")
-	for k,v in pairs(reader.Export.OrdinalOnly) do
+	for k,v in pairs(reader.Exports.OrdinalOnly) do
 		if type(v) == "string" then
 			print(k, v)
 		else
@@ -176,7 +176,7 @@ local function printExports(reader)
 	end
 
 	print(" = Named Functions =")
-	for i, entry in ipairs(reader.Export.NamedFunctions) do
+	for i, entry in ipairs(reader.Exports.NamedFunctions) do
 		if type(entry.funcptr) == "string" then
 			print(string.format("%4d %4d %50s %s",entry.ordinal, entry.hint, entry.name, entry.funcptr))
 		else 

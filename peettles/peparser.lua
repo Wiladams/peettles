@@ -21,7 +21,7 @@ local peenums = require("peettles.penums")
 
 local parse_exports = require("peettles.parse_exports")
 local parse_imports = require("peettles.parse_imports")
-
+local parse_resources = require("peettles.parse_resources")
 
 local peparser = {}
 setmetatable(peparser, {
@@ -300,294 +300,25 @@ function peparser.readPE32PlusHeader(self, ms)
     return self.PEHeader;
 end
 
---[=[
-function peparser.readDirectory_Import(self)
-
-    --print("==== readDirectory_Import ====")
-    local IMAGE_ORDINAL_FLAG32 = 0x80000000
-    local IMAGE_ORDINAL_FLAG64 = 0x8000000000000000ULL;
-    
-    self.Imports = {}
-    local dirTable = self.PEHeader.Directories.ImportTable
-    if not dirTable then return false end
-
-    -- Get section import directory is in
-    local importsStartRVA = dirTable.VirtualAddress
-	local importsSize = dirTable.Size
-	local importdescripptr = self:fileOffsetFromRVA(dirTable.VirtualAddress)
-
-	if not importdescripptr then
-		print("No section found for import directory")
-		return
-    end
-    
-
-	--print("file offset: ", string.format("0x%x",importdescripptr));
-
-     -- Setup a binstream and start reading
-    local ImageImportDescriptorStream = binstream(self._data, self._size, 0, true)
-    ImageImportDescriptorStream:seek(importdescripptr);
-	while true do
-        local res = {
-            OriginalFirstThunk  = ImageImportDescriptorStream:readUInt32();   -- RVA to IMAGE_THUNK_DATA array
-            TimeDateStamp       = ImageImportDescriptorStream:readUInt32();
-            ForwarderChain      = ImageImportDescriptorStream:readUInt32();
-            Name1               = ImageImportDescriptorStream:readUInt32();   -- RVA, Name of the .dll or .exe
-            FirstThunk          = ImageImportDescriptorStream:readUInt32();
-        }
-
-        if (res.Name1 == 0 and res.OriginalFirstThunk == 0 and res.FirstThunk == 0) then 
-            break;
-        end
-
---[[
-        print("== IMPORT ==")
-        print(string.format("OriginalFirstThunk: 0x%08x (0x%08x)", res.OriginalFirstThunk, self:fileOffsetFromRVA(res.OriginalFirstThunk)))
-        print(string.format("     TimeDateStamp: 0x%08x", res.TimeDateStamp))
-        print(string.format("    ForwarderChain: 0x%08x", res.ForwarderChain))
-        print(string.format("             Name1: 0x%08x (0x%08x)", res.Name1, self:fileOffsetFromRVA(res.Name1)))
-        print(string.format("        FirstThunk: 0x%08x", res.FirstThunk))
---]]
-        -- The .Name1 field contains an RVA which points to
-        -- the actual string name of the .dll
-        -- So, get the file offset, and read the string
-        local Name1Offset = self:fileOffsetFromRVA(res.Name1)
-        if Name1Offset then
-            -- use a separate stream to read the string so we don't
-            -- upset the positioning on the one that's reading
-            -- the import descriptors
-            local ns = binstream(self._data, self._size, Name1Offset, true)
-
-            res.DllName = ns:readString();
-            --print("DllName: ", res.DllName)
-            self.Imports[res.DllName] = {};
-        end 
-
-        -- Iterate over the invividual import entries
-        -- The thunk points to an array of IMAGE_THUNK_DATA structures
-        -- which is comprised of a single uint32_t
-		local thunkRVA = res.OriginalFirstThunk
-		local thunkIATRVA = res.FirstThunk
-        if thunkRVA == 0 then
-            thunkRVA = thunkIATRVA
-        end
-
-		if (thunkRVA ~= 0) then
-            local thunkRVAOffset = self:fileOffsetFromRVA(thunkRVA);
-
-            -- this will point to an array of IMAGE_THUNK_DATA objects
-            -- so create a separate stream to read them
-            local ThunkArrayStream = binstream(self._data, self._size, thunkRVAOffset, true)
-
-            -- Read individual Import names or ordinals
-            while (true) do
-                local ThunkDataRVA = 0ULL;
-                if self.isPE32Plus then
-                        --print("PE32Plus")
-                    ThunkDataRVA = ThunkArrayStream:readUInt64();
-                        --print("ThunkDataRVA(64): ", ThunkDataRVA)
-                else
-                    ThunkDataRVA = ThunkArrayStream:readUInt32();
-                    --print("ThunkDataRVA(32): ", ThunkDataRVA)
-                end
-
-                --print(string.format("ThunkDataRVA: 0x%08X (0x%08X)", ThunkDataRVA, self:fileOffsetFromRVA(ThunkDataRVA)))
-                if ThunkDataRVA == 0 then
-                    break;
-                end
-
-                local ThunkDataOffset = self:fileOffsetFromRVA(ThunkDataRVA)
-
-                local asOrdinal = false;
-                local ordinal = 0;
-                -- ordinal is indicated if high order bit is set
-                -- then the ordinal itself is in the lower 16 bits
-                if self.isPE32Plus then
-                    if band(ThunkDataRVA, IMAGE_ORDINAL_FLAG64) ~= 0 then
-                        asOrdinal = true;
-                        ordinal = tonumber(band(0xffff, ThunkDataRVA))
-                    end
-                else
-                    if band(ThunkDataRVA, IMAGE_ORDINAL_FLAG32) ~= 0 then
-                        asOrdinal = true;
-                        ordinal = tonumber(band(0xffff, ThunkDataRVA))
-                    end
-                end 
-
-                -- Check for Ordinal only import
-                -- must be mindful of 32/64-bit
-                if (asOrdinal) then
-                    --print("** IMPORT ORDINAL!! **")
-                    table.insert(self.Imports[res.DllName], ordinal)
-                else
-                    -- Read the entries in the nametable
-                    local HintNameStream = binstream(self._data, self._size, ThunkDataOffset, true);
-
-                    local hint = HintNameStream:readUInt16();
-                    local actualName = HintNameStream:readString();
-
-                    --print(string.format("\t0x%04x %s", hint, actualName))
-                    table.insert(self.Imports[res.DllName], actualName);
-                end
-            end
-        end
-    end
-
-    return res;
-end
---]=]
-
--- Read the resource directory
-function peparser.readDirectory_Resource(self)
-    -- lookup the entry for the resource directory
-    local dirTable = self.PEHeader.Directories.ResourceTable
-    if not dirTable then 
-        return false, "ResourceTable directory not found" 
-    end
-    
-    -- find the associated section
-    local resourcedirectoryOffset = self:fileOffsetFromRVA(dirTable.VirtualAddress)
-    local bs = self.SourceStream:range(dirTable.Size, resourcedirectoryOffset)
-
-
-    -- Reading the resource hierarchy is recursive
-    -- so , we define a function that will be called
-    -- recursively to traverse the entire hierarchy
-    -- Each time through, we keep track of the level, in case
-    -- we want to do something with that information.
-    local function readResourceDirectory(bs, res, level, tab)
-    
-        level = level or 1
-        res = res or {}
-        
-        --print(tab, "-- READ RESOURCE DIRECTORY")
-        --print(tab, "LEVEL: ", level)
-
-
-        res.isDirectory = true;
-        res.level = level;
-        res.Characteristics = bs:readUInt32();          
-        res.TimeDateStamp = bs:readUInt32();            
-        res.MajorVersion = bs:readUInt16();             
-        res.MinorVersion = bs:readUInt16();            
-        res.NumberOfNamedEntries = bs:readUInt16();     
-        res.NumberOfIdEntries = bs:readUInt16();        
-
-
-        res.Entries = {}
-
-
-        local cnt = 0;
-        while (cnt < res.NumberOfNamedEntries + res.NumberOfIdEntries) do
-            local entry = {
-                Name = bs:readUInt32();
-                OffsetToData = bs:readUInt32();
-            }
-            table.insert(res.Entries, entry)
-            cnt = cnt + 1;
-        end
-
-
-        -- Now that we have all the entries (IMAGE_RESOURCE_DIRECTORY_ENTRY)
-        -- go through them and perform a specific action for each based on what it is
-        for i, entry in ipairs(res.Entries) do
-            --print(tab, "ENTRY")
-            -- check to see if it's a string or an ID
-            entry.level = level;
-
-            if band(entry.Name, 0x80000000) ~= 0 then
-                -- bits 0-30 are an RVA to a UNICODE string
-                -- get RVA offset, not really RVA, but offset 
-                -- from start of current section?
-                local unirva = band(entry.Name, 0x7fffffff)
-
-                --local unilen = ns:readUInt16();
-                --local uniname = readUNICODEString(unilen)
-                -- convert unicode to ASCII
-                --entry.ID = asciiname;
-                entry.ID = unirva
-                --print(tab, "NAMED ID: ", entry.ID)
-            else
-                --print(tab, "  ID: ", string.format("0x%x", entry.Name))
-                entry.ID = entry.Name;
-            end
-
-            -- It is Microsoft convention to used the 
-            -- first three levels to indicate: resource type, ID, language ID
-            if level == 1 then
-                entry.Kind = entry.ID;
-                --print(tab, "    Entry ID (KIND): ", entry.ID, peenums.ResourceTypes[entry.ID])
-            elseif level == 2 then
-                entry.ItemID = entry.ID;
-                --print(tab, "    Entry ID (NAME): ", entry.ID)
-            elseif level == 3 then
-                entry.LanguageID = entry.ID;
-                --print(tab, "Entry ID (LANGUAGE): ", entry.ID)
-            end
-
-            -- entry.OffsetToData determines whether we're going after
-            -- a leaf node, or just another directory
-            --print(tab, "  OffsetToData: ", string.format("0x%x", entry.OffsetToData), band(entry.OffsetToData, 0x80000000))
-            if band(entry.OffsetToData, 0x80000000) ~= 0 then
-                --print(tab, "  DIRECTORY")
-                local offset = band(entry.OffsetToData, 0x7fffffff)
-                -- pointer to another image directory
-                bs:seek(offset)
-                readResourceDirectory(bs, entry, level+1, tab.."    " )
-            else
-                --print(tab, "  LEAF: ", entry.OffsetToData)
-                -- we finally have actual data, so read the data entry
-                -- entry.OffsetToData is an offset from start of root directory
-                -- seek to the offset, and start reading
-                bs:seek(entry.OffsetToData)
-
-                entry.isData = true;
-                entry.DataRVA = bs:readUInt32();
-                entry.Size = bs:readUInt32();
-                entry.CodePage = bs:readUInt32();
-                entry.Reserved = bs:readUInt32();
-
---[[
-                print(tab, "    DataRVA: ", string.format("0x%08X", entry.DataRVA));
-                print(tab, "       Size: ",entry.Size);
-                print(tab, "  Code Page: ", entry.CodePage);
-                print(tab, "   Reserved: ", entry.Reserved);
---]]
-                -- The DataRVA points to the actual data
-                -- it is supposed to be an offset from the start
-                -- of the resource stream
-                bs:seek(entry.DataRVA)
-                entry.Data = bs:readBytes(entry.Size)
-            end
-        end
-
-        return res;
-    end
-
-    self.Resources = readResourceDirectory(bs, {}, 1, "");
-
-    return self.Resources;
-end
-
 
 function peparser.readDirectoryData(self)
     self.Directories = self.Directories or {}
     
-    local success, err = parse_exports(self);
-    if success then
-        self.Export = success;
+    local dirNames = {
+        Exports = parse_exports;
+        Imports = parse_imports;
+        Resources = parse_resources;
+    }
+
+    for dirName, parseit in pairs(dirNames) do
+        local success, err = parseit(self);
+        if success then
+            self[dirName] = success;
+        else
+            print("ERROR PARSING: ", dirName, err);
+        end
     end
 
-    success, err = parse_imports(self);
-    if success then
-        self.Import = success;
-    end
-
-
-    local success, err = self:readDirectory_Resource()
-    if not success then
-        print("Error from readDirectory_Resource: ", err)
-    end
 end
 
 local function stringFromBuff(buff, size)
