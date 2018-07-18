@@ -33,13 +33,13 @@ end
 local function printDOSInfo(pecoff)
     local info = pecoff.DOS;
 
-	print("DOS = {")
-	print(string.format("    Magic = '%c%c';", info.DOSHeader.e_magic[0], info.DOSHeader.e_magic[1]))
-	print(string.format(" PEOffset = 0x%04X;", info.DOSHeader.e_lfanew));
-	print(string.format(" StubSize = 0x%04x;", info.DOSStubSize))
+	print("  DOS = {")
+	print(string.format("      Magic = '%c%c';", info.DOSHeader.e_magic[0], info.DOSHeader.e_magic[1]))
+	print(string.format("   PEOffset = 0x%04X;", info.DOSHeader.e_lfanew));
+	print(string.format("   StubSize = 0x%04x;", info.DOSStubSize))
 	-- print the stub in base64
 	--printData(info.DOSStub, info.DOSStubSize);
-	print("};")
+	print("  };")
 end
 
 local function printCOFF(reader)
@@ -56,28 +56,54 @@ local function printCOFF(reader)
 	print("  };")
 end
 
+local function printOptionalHeader(peinfo)
+	local info = peinfo.PEHeader
+	
+	if not info then
+		return  false, "No Optional Header Info"
+	end
+
+	print("  OptionalHeader = {")
+	print(string.format("                   Magic = 0x%04X;",info.Magic))
+    print(string.format("           LinkerVersion = '%d.%02d';", info.MajorLinkerVersion, info.MinorLinkerVersion));
+	print(string.format("              SizeOfCode = 0x%08X;", info.SizeOfCode))
+    print(string.format("               ImageBase = 0x%sULL;", bit.tohex(info.ImageBase)))
+    print(string.format("        SectionAlignment = %d;", info.SectionAlignment))
+	print(string.format("           FileAlignment = %d;", info.FileAlignment))
+	print(string.format("     AddressOfEntryPoint = 0x%08X;",info.AddressOfEntryPoint))
+	print(string.format("              BaseOfCode = 0x%08X;", info.BaseOfCode))
+	-- BaseOfData only exists for 32-bit, not 64-bit
+	if info.BaseOfData then
+		print(string.format("            BaseOfData = 0x%08X", info.BaseOfData))
+	end
+
+	print(string.format("    NumberOfRvasAndSizes = %d;", info.NumberOfRvaAndSizes))
+	print("  };")
+end
+
+
 local function printSectionHeaders(reader)
 
-	print("Sections = {")
+	print("  Sections = {")
 	for name,section in pairs(reader.Sections) do
-		print(string.format("  ['%s'] = {", name))
-		print(string.format("           VirtualSize = %d;", section.VirtualSize))
-		print(string.format("        VirtualAddress = 0x%08X;", section.VirtualAddress))
-		print(string.format("         SizeOfRawData = 0x%08X;", section.SizeOfRawData))
-		print(string.format("      PointerToRawData = 0x%08X;", section.PointerToRawData))
-		print(string.format("  PointerToRelocations = 0x%08X;", section.PointerToRelocations))
-		print(string.format("  PointerToLinenumbers = 0x%08X;", section.PointerToLinenumbers))
-		print(string.format("   NumberOfRelocations = %d;", section.NumberOfRelocations))
-		print(string.format("   NumberOfLineNumbers = %d;", section.NumberOfLinenumbers))
-		print(string.format("       Characteristics = 0x%08X;", section.Characteristics))
-		print(  "  };")
+		print(string.format("    ['%s'] = {", name))
+		print(string.format("             VirtualSize = %d;", section.VirtualSize))
+		print(string.format("          VirtualAddress = 0x%08X;", section.VirtualAddress))
+		print(string.format("           SizeOfRawData = 0x%08X;", section.SizeOfRawData))
+		print(string.format("        PointerToRawData = 0x%08X;", section.PointerToRawData))
+		print(string.format("    PointerToRelocations = 0x%08X;", section.PointerToRelocations))
+		print(string.format("    PointerToLinenumbers = 0x%08X;", section.PointerToLinenumbers))
+		print(string.format("     NumberOfRelocations = %d;", section.NumberOfRelocations))
+		print(string.format("     NumberOfLineNumbers = %d;", section.NumberOfLinenumbers))
+		print(string.format("         Characteristics = 0x%08X;", section.Characteristics))
+		print(  "    };")
 	end
-	print("};")
+	print("  };")
 end
 
 local function printDataDirectory(reader)
 	local dirs = reader.PEHeader.Directories
-	print("Directories = {")
+	print("  Directories = {")
 	for name,dir in pairs(dirs) do
 		--print(name, dir)
 		local vaddr = dir.VirtualAddress
@@ -90,7 +116,7 @@ local function printDataDirectory(reader)
 		end
 		print(string.format("    %22s = {VirtualAddress = 0x%08X,  Size= 0x%08X,  Section='%s'};",  name, vaddr, dir.Size, sectionName))
 	end
-	print("};")
+	print("  };")
 end
 
 local function printImports(reader)
@@ -106,6 +132,131 @@ local function printImports(reader)
 	end
 	print("};")
 end
+
+local function printExports(reader)
+
+	if (not reader.Exports) then
+		return false, "  NO EXPORTS"
+	end
+
+	local res = reader.Exports
+
+	print("  Exports = {")
+	print(string.format("              ExportFlags = 0x%08X;", res.Characteristics))
+	print(string.format("            TimeDateStamp = 0x%08X;", res.TimeDateStamp))
+	print(string.format("                  Version = '%d.%02d';", res.MajorVersion, res.MinorVersion))
+    print(string.format("                    nName = 0x%08X;", res.nName))
+    print(string.format("               ModuleName = '%s';", res.ModuleName))
+    print(string.format("              OrdinalBase = %d;", res.nBase))
+    print(string.format("        NumberOfFunctions = %d;", res.NumberOfFunctions));
+    print(string.format("            NumberOfNames = %d;", res.NumberOfNames));
+    print(string.format("       AddressOfFunctions = 0x%08X;", res.AddressOfFunctions));
+    print(string.format("           AddressOfNames = 0x%08X;", res.AddressOfNames));
+    print(string.format("    AddressOfNameOrdinals = 0x%08X;", res.AddressOfNameOrdinals));
+
+	--[[
+	print(" = All Functions =")
+	for k,v in pairs(reader.Export.AllFunctions) do
+		if tonumber(v) then
+			print (k, string.format("0x%x", v))
+		else
+			print(k, v)
+		end
+	end
+--]]
+
+	print("    OrdinalOnly = {")
+	for k,v in pairs(reader.Exports.OrdinalOnly) do
+		if type(v) == "string" then
+			print(k, v)
+		else
+			print (string.format("      [%d] = %s;", k, string.format("0x%x", v)))
+		end
+	end
+	print("    };")
+
+	print("    NamedFunctions = {")
+	for i, entry in ipairs(reader.Exports.NamedFunctions) do
+		if type(entry.funcptr) == "string" then
+			print(string.format("      %s = {Hint = %4d, Ordinal = %4d, Forward = '%s'};",entry.name, entry.hint, entry.ordinal, entry.funcptr))
+		else 
+			print(string.format("      %s = {Hint = %4d, Ordinal = %4d, Address = 0x%08X};",entry.name, entry.hint, entry.ordinal, entry.funcptr))
+		end
+	end
+	print("    };")
+
+	print("  };")
+end
+
+local function printResources(peinfo)
+	if not peinfo.Resources then
+		return false, "No Resources";
+	end
+
+	local function printDebug(level, ...)
+		local cnt = 0;
+		while cnt < level do
+			io.write('    ')
+			cnt = cnt + 1;
+		end
+		print(...)
+	end
+
+	local function printResourceData(entry)
+		local buffer = ffi.new("uint8_t[?]", 16)
+
+		-- get file offset for DataRVA
+		local dataOffset = info:fileOffsetFromRVA(entry.DataRVA)
+		local dataSize = entry.Size;
+		--local bs = binstream(info.SourceStream._data, info.SourceStream._size, dataOffset, true);
+		local bs = info.SourceStream:range(dataSize, dataOffset);
+		-- print in hex
+		putils.printHex(bs, buffer)
+	end
+
+	local function printDirectory(subdir, level)
+		level = level or 1
+		printDebug(level, "SUBDIRECTORY")
+		printDebug(level, "          Level: ", subdir.level or "ROOT")
+		printDebug(level, "   Is Directory: ", subdir.isDirectory)
+		printDebug(level, "             ID: ", subdir.ID);
+		
+		-- It is Microsoft convention to used the 
+        -- first three levels to indicate: resource type, ID, language ID
+        if subdir.level == 1 then
+			printDebug(level, "    Entry ID (KIND): ", subdir.Kind, peenums.ResourceTypes[subdir.Kind])
+        elseif subdir.level == 2 then
+			printDebug(level, "    Entry ID (NAME): ", subdir.ItemID)
+        elseif subdir.level == 3 then
+			printDebug(level, "Entry ID (LANGUAGE): ", subdir.LanguageID)
+		end
+
+		printDebug(level, "Characteristics: ", subdir.Characteristics);
+		printDebug(level, "Time Date Stamp: ", subdir.TimeDateStamp);
+		printDebug(level, "        Version: ", string.format("%d.%02d", subdir.MajorVersion, subdir.MinorVersion));
+		printDebug(level, "  Named Entries: ", subdir.NumberOfNamedEntries);
+		printDebug(level, "     Id Entries: ", subdir.NumberOfIdEntries);
+		printDebug(level, "  == Entries ==")
+		if subdir.Entries then
+			--print("  NUM Entries: ", #subdir.Entries)
+			for i, entry in ipairs(subdir.Entries) do 
+				if entry.isDirectory then
+					printDirectory(entry, level+1);
+				elseif entry.isData then
+					printDebug(level, "    DataRVA: ", string.format("0x%08X", entry.DataRVA));
+					printDebug(level, "       Size: ",entry.Size);
+					printDebug(level, "  Code Page: ", entry.CodePage);
+					printDebug(level, "   Reserved: ", entry.Reserved);
+
+					--printResourceData(entry);
+				end
+			end
+		end
+	end
+
+	printDirectory(peinfo.Resources)
+end
+
 
 local function main()
 	local mfile = mmap(filename);
@@ -123,12 +274,12 @@ local function main()
 	--print(string.format("  Name = '%s';", filename))
 	printDOSInfo(info)
 	printCOFF(info)
-	--printOptionalHeader(info)
+	printOptionalHeader(info)
 	printDataDirectory(info)
 	printSectionHeaders(info)
 	printImports(info)
-	--printExports(info)
-	--printResources(info)
+	printExports(info)
+	printResources(info)
 	print("};")
 end
 

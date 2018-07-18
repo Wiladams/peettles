@@ -424,18 +424,7 @@ function peparser.parse(self, ms)
     if not self.DOS then 
         return false, err;
     end
---[[
-    local DOSBodySize = DOSHeader.e_lfanew - ms:tell();
-    self.DOS = {
-        Header = DOSHeader;
-        StubSize = DOSBodySize;
-        Stub = ms:readBytes(DOSBodySize);   -- Valid DOS stub program
-    }
- 
-    -- seek to where the PE header
-    -- is supposed to start
-    ms:seek(DOSHeader.e_lfanew)
---]]
+
 
     -- The stream should now be located at the 'PE' signature
     -- we assume we can only read Portable Executable
