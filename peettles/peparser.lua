@@ -19,6 +19,7 @@ local band = bit.band;
 local binstream = require("peettles.binstream")
 local peenums = require("peettles.penums")
 
+local parse_DOS = require("peettles.parse_DOS")
 local parse_exports = require("peettles.parse_exports")
 local parse_imports = require("peettles.parse_imports")
 local parse_resources = require("peettles.parse_resources")
@@ -365,10 +366,7 @@ function peparser.readSectionHeaders(self)
 	return self
 end
 
---[[
-    DOS Header
-    COFF Header
-]]
+
 function peparser.readPESignature(self)
     local ntheadertype = self.SourceStream:readBytes(4);
     if not IsPEFormatImageFile(ntheadertype) then
@@ -419,11 +417,14 @@ function peparser.parse(self, ms)
     self._data = ms.data;
     self._size = ms.size;
 
-    local DOSHeader, err, sig = self:readDOSHeader();
-    if not DOSHeader then 
-        return false, err, sig;
-    end
+    local err = false;
+    self.DOS, err = parse_DOS(ms);
 
+    --local DOSHeader, err, sig = self:readDOSHeader();
+    if not self.DOS then 
+        return false, err;
+    end
+--[[
     local DOSBodySize = DOSHeader.e_lfanew - ms:tell();
     self.DOS = {
         Header = DOSHeader;
@@ -434,7 +435,9 @@ function peparser.parse(self, ms)
     -- seek to where the PE header
     -- is supposed to start
     ms:seek(DOSHeader.e_lfanew)
+--]]
 
+    -- The stream should now be located at the 'PE' signature
     -- we assume we can only read Portable Executable
     -- anything else is an error
     local pesig, err = self:readPESignature()

@@ -1,3 +1,13 @@
+--[[
+	This is a general test case to do a sanity check on parsing of PE files.
+		It calls the parser, getting as much info on the file as possible
+		and prints it all out.
+	
+	luajit test_peparse.lua filename.dll
+
+	I can deal with any 'PE' file the parser can handle, typically .dll, .exe.
+]]
+
 package.path = "../?.lua;"..package.path
 
 local ffi = require("ffi")
@@ -18,12 +28,25 @@ if not filename then
     return
 end
 
+local function printData(data, size)
+	local bs, err = binstream(data, size)
+
+	putils.printHex {
+        stream = bs;
+        buffer = ffi.new("uint8_t[?]", 16);
+        offsetbits = 32;
+        iterations = 256;
+        verbose = false;
+    }
+end
 
 local function printDOSInfo(info)
 	print("==== DOS ====")
-	print("    Magic: ", string.format("%c%c", info.Header.e_magic[0], info.Header.e_magic[1]))
-	print("PE Offset: ", string.format("0x%04x", info.Header.e_lfanew));
-	print("Stub Size: ", string.format("0x%04x (%d)", info.StubSize, info.StubSize))
+	print("    Magic: ", string.format("%c%c", info.DOSHeader.e_magic[0], info.DOSHeader.e_magic[1]))
+	print("PE Offset: ", string.format("0x%04x", info.DOSHeader.e_lfanew));
+	print("Stub Size: ", string.format("0x%04x (%d)", info.DOSStubSize, info.DOSStubSize))
+	-- print the stub in hex
+	printData(info.DOSStub, info.DOSStubSize);
 	print("---------------------")
 end
 
@@ -139,9 +162,6 @@ local function printExports(reader)
 	end
 
 	local res = reader.Exports
-
-
-
 
 	print("        Export Flags: ", string.format("0x%08X", res.Characteristics))
 	print("     Time Date Stamp: ", string.format("0x%08X", res.TimeDateStamp))

@@ -7,6 +7,17 @@ local function isprintable(c)
         return c >= 0x20 and c < 0x7f
 end
 
+--[[
+    Pass in a config that looks like this:
+
+    local config = {
+        ms = stream;
+        buffer = buff;
+        offsetbits = 32;
+        iterations = 256;
+        verbose = true;
+    }
+]]
 local function printHex(config)
     local ms = config.stream;
     local buffer = config.buffer or ffi.new("uint8_t[?]", 16)

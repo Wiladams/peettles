@@ -35,7 +35,7 @@ local function parseResources(self, restbl)
         level = level or 1
         res = res or {}
         
-        print(tab, "-- READ RESOURCE DIRECTORY")
+        --print(tab, "-- READ RESOURCE DIRECTORY")
         --print(tab, "LEVEL: ", level)
 
 
@@ -65,7 +65,7 @@ local function parseResources(self, restbl)
         -- Now that we have all the entries (IMAGE_RESOURCE_DIRECTORY_ENTRY)
         -- go through them and perform a specific action for each based on what it is
         for i, entry in ipairs(res.Entries) do
-            print(tab, "ENTRY")
+            --print(tab, "ENTRY")
             -- check to see if it's a string or an ID
             if band(entry.Name, 0x80000000) ~= 0 then
                 -- bits 0-30 are an RVA to a UNICODE string
@@ -80,7 +80,7 @@ local function parseResources(self, restbl)
                 entry.ID = unirva
                 --print(tab, "NAMED ID: ", entry.ID)
             else
-                print(tab, "  ID: ", string.format("0x%x", entry.Name))
+                --print(tab, "  ID: ", string.format("0x%x", entry.Name))
                 entry.ID = entry.Name;
             end
 
@@ -98,13 +98,13 @@ local function parseResources(self, restbl)
             -- a leaf node, or just another directory
             --print(tab, "  OffsetToData: ", string.format("0x%x", entry.OffsetToData), band(entry.OffsetToData, 0x80000000))
             if band(entry.OffsetToData, 0x80000000) ~= 0 then
-                print(tab, "  DIRECTORY")
+                --print(tab, "  DIRECTORY")
                 local offset = band(entry.OffsetToData, 0x7fffffff)
                 -- pointer to another image directory
                 bs:seek(offset)
                 readResourceDirectory(bs, entry, level+1, tab.."    " )
             else
-                print(tab, "  LEAF: ", entry.OffsetToData)
+                --print(tab, "  LEAF: ", entry.OffsetToData)
                 -- we finally have actual data, so read the data entry
                 -- entry.OffsetToData is an offset from start of root directory
                 -- seek to the offset, and start reading
