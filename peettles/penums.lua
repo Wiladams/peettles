@@ -65,8 +65,9 @@ local Subsystem = enum {
 }
 
 local OptHeaderMagic = enum {
-    IMAGE_MAGIC_HEADER_PE32 = 0x10b,
-    IMAGE_MAGIC_HEADER_PE32_PLUS = 0x20b,
+    IMAGE_MAGIC_HEADER_PE32         = 0x10b,
+    IMAGE_MAGIC_HEADER_PE32_PLUS    = 0x20b,
+    IMAGE_MAGIC_HEADER_ROM          = 0x107,
 }
 
 -- COFF Header, Characteristics field

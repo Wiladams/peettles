@@ -45,14 +45,33 @@ end
 local function printCOFF(reader)
 	local info = reader.COFF;
 
-	print("COFF  = {")
-    print(string.format("                Machine = 0x%X; ", info.Machine));      -- peenums.MachineType[info.Machine]);
-	print(string.format("     NumberOfSections = %d;", info.NumberOfSections));
-	print(string.format("        TimeDateStamp = 0x%X;", info.TimeDateStamp));
-	print(string.format("PointerToSymbolTable = 0x%X;", info.PointerToSymbolTable));
-	print(string.format("      NumberOfSymbols = %d;", info.NumberOfSymbols));
-	print(string.format("SizeOfOptionalHeader = %d;", info.SizeOfOptionalHeader));
-	print(string.format("        Characteristics: 0x%04X;", info.Characteristics));  -- enum.bitValues(peenums.Characteristics, info.Characteristics, 32)));
+	print("  COFF  = {")
+    print(string.format("                 Machine = 0x%X; ", info.Machine));      -- peenums.MachineType[info.Machine]);
+	print(string.format("        NumberOfSections = %d;", info.NumberOfSections));
+	print(string.format("           TimeDateStamp = 0x%X;", info.TimeDateStamp));
+	print(string.format("    PointerToSymbolTable = 0x%X;", info.PointerToSymbolTable));
+	print(string.format("         NumberOfSymbols = %d;", info.NumberOfSymbols));
+	print(string.format("    SizeOfOptionalHeader = %d;", info.SizeOfOptionalHeader));
+	print(string.format("         Characteristics = 0x%04X;", info.Characteristics));  -- enum.bitValues(peenums.Characteristics, info.Characteristics, 32)));
+	print("  };")
+end
+
+local function printSectionHeaders(reader)
+
+	print("Sections = {")
+	for name,section in pairs(reader.Sections) do
+		print(string.format("  ['%s'] = {", name))
+		print(string.format("           VirtualSize = %d;", section.VirtualSize))
+		print(string.format("        VirtualAddress = 0x%08X;", section.VirtualAddress))
+		print(string.format("         SizeOfRawData = 0x%08X;", section.SizeOfRawData))
+		print(string.format("      PointerToRawData = 0x%08X;", section.PointerToRawData))
+		print(string.format("  PointerToRelocations = 0x%08X;", section.PointerToRelocations))
+		print(string.format("  PointerToLinenumbers = 0x%08X;", section.PointerToLinenumbers))
+		print(string.format("   NumberOfRelocations = %d;", section.NumberOfRelocations))
+		print(string.format("   NumberOfLineNumbers = %d;", section.NumberOfLinenumbers))
+		print(string.format("       Characteristics = 0x%08X;", section.Characteristics))
+		print(  "  };")
+	end
 	print("};")
 end
 
@@ -74,6 +93,19 @@ local function printDataDirectory(reader)
 	print("};")
 end
 
+local function printImports(reader)
+	if not reader.Imports then return false, "No Imports"; end
+
+	print("Imports = {")
+	for k,v in pairs(reader.Imports) do
+		print(string.format("  ['%s'] = {", k))
+		for i, name in ipairs(v) do
+			print(string.format("    '%s',",name))
+		end
+		print("  };")
+	end
+	print("};")
+end
 
 local function main()
 	local mfile = mmap(filename);
@@ -87,14 +119,17 @@ local function main()
 		return
 	end
 
+	print(string.format("local pecoff = { "))
+	--print(string.format("  Name = '%s';", filename))
 	printDOSInfo(info)
 	printCOFF(info)
 	--printOptionalHeader(info)
 	printDataDirectory(info)
-	--printSectionHeaders(info)
-	--printImports(info)
+	printSectionHeaders(info)
+	printImports(info)
 	--printExports(info)
 	--printResources(info)
+	print("};")
 end
 
 main()
