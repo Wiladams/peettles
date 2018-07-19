@@ -87,7 +87,7 @@ local function printSectionHeaders(reader)
 	print("  Sections = {")
 	for name,section in pairs(reader.Sections) do
 		print(string.format("    ['%s'] = {", name))
-		print(string.format("             VirtualSize = %d;", section.VirtualSize))
+		print(string.format("             VirtualSize = 0x%08X;", section.VirtualSize))
 		print(string.format("          VirtualAddress = 0x%08X;", section.VirtualAddress))
 		print(string.format("           SizeOfRawData = 0x%08X;", section.SizeOfRawData))
 		print(string.format("        PointerToRawData = 0x%08X;", section.PointerToRawData))
@@ -178,9 +178,9 @@ local function printExports(reader)
 	print("    NamedFunctions = {")
 	for i, entry in ipairs(reader.Exports.NamedFunctions) do
 		if type(entry.funcptr) == "string" then
-			print(string.format("      %s = {Hint = %4d, Ordinal = %4d, Forward = '%s'};",entry.name, entry.hint, entry.ordinal, entry.funcptr))
+			print(string.format("      %s = {Hint = %d, Ordinal = %d, Forward = '%s'};",entry.name, entry.hint, entry.ordinal, entry.funcptr))
 		else 
-			print(string.format("      %s = {Hint = %4d, Ordinal = %4d, Address = 0x%08X};",entry.name, entry.hint, entry.ordinal, entry.funcptr))
+			print(string.format("      %s = {Hint = %d, Ordinal = %d, Address = 0x%08X};",entry.name, entry.hint, entry.ordinal, entry.funcptr))
 		end
 	end
 	print("    };")
@@ -215,7 +215,7 @@ local function printResources(peinfo)
 	end
 
 	local function printDirectory(subdir, level)
-		level = level or 1
+		level = level or 0
 		printDebug(level, "SUBDIRECTORY")
 		printDebug(level, "          Level: ", subdir.level or "ROOT")
 		printDebug(level, "   Is Directory: ", subdir.isDirectory)
