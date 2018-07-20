@@ -20,6 +20,7 @@ local binstream = require("peettles.binstream")
 local peenums = require("peettles.penums")
 
 local parse_DOS = require("peettles.parse_DOS")
+local parse_COFF = require("peettles.parse_COFF")
 local parse_exports = require("peettles.parse_exports")
 local parse_imports = require("peettles.parse_imports")
 local parse_resources = require("peettles.parse_resources")
@@ -53,91 +54,13 @@ function peparser.fromData(self, data, size)
     return obj:parse(ms)
 end
 
---[[
-    Do the work of actually parsing the interesting
-    data in the file.
-]]
---[[
-    PE\0\0 - PE header
-    NE\0\0 - 16-bit Windows New Executable
-    LE\0\0 - Windows 3.x virtual device driver (VxD)
-    LX\0\0 - OS/2 2.0
-]]
-local function IsPEFormatImageFile(sig)
-    return sig[0] == string.byte('P') and
-        sig[1] == string.byte('E') and
-        sig[2] == 0 and
-        sig[3] == 0
-end
 
 
---
--- Given an RVA, look up the section header that encloses it 
--- return the table that represents that section
---
-function peparser.GetEnclosingSectionHeader(self, rva)
-    --print("==== EnclosingSection: ", rva)
-    for secname, section in pairs(self.Sections) do
-        -- Is the RVA within this section?
-        local pos = rva - section.VirtualAddress;
-        if pos >= 0 and pos < section.VirtualSize then
-            -- return section, and the calculated offset within the section
-            return section, pos 
-        end
-    end
 
-    return false;
-end
 
--- There are many values within the file which are 'RVA' (Relative Virtual Address)
--- In order to translate this RVA into a file offset, we use the following
--- function.
-function peparser.fileOffsetFromRVA(self, rva)
-    local section, pos = self:GetEnclosingSectionHeader( rva);
-    if not section then return false, "section not found for rva"; end
 
-    local fileOffset = pos + section.PointerToRawData;
 
-    return fileOffset
-end
 
-function peparser.readDOSHeader(self, res)
-    local function isValidDOS(bytes)
-        return bytes[0] == string.byte('M') and
-            bytes[1] == string.byte('Z')
-    end
-    
-    local ms = self.SourceStream;
-    local e_magic = ms:readBytes(2);    -- Magic number, must be 'MZ'
-
-    if not isValidDOS(e_magic) then
-        return false, "'MZ' signature not found", e_magic
-    end
-
-    local res = res or {}
-
-    res.e_magic = e_magic;                      -- Magic number
-    res.e_cblp = ms:readUInt16();               -- Bytes on last page of file
-    res.e_cp = ms:readUInt16();                 -- Pages in file
-    res.e_crlc = ms:readUInt16();               -- Relocations
-    res.e_cparhdr = ms:readUInt16();            -- Size of header in paragraphs
-    res.e_minalloc = ms:readUInt16();           -- Minimum extra paragraphs needed
-    res.e_maxalloc = ms:readUInt16();           -- Maximum extra paragraphs needed
-    res.e_ss = ms:readUInt16();                 -- Initial (relative) SS value
-    res.e_sp = ms:readUInt16();                 -- Initial SP value
-    res.e_csum = ms:readUInt16();               -- Checksum
-    res.e_ip = ms:readUInt16();                 -- Initial IP value
-    res.e_cs = ms:readUInt16();                 -- Initial (relative) CS value
-    res.e_lfarlc = ms:readUInt16();             -- File address of relocation table
-    res.e_ovno = ms:readUInt16();               -- Overlay number
-        ms:skip(4*2);                           -- e_res, basetype="uint16_t", repeating=4},    -- Reserved s
-    res.e_oemid = ms:readUInt16();              -- OEM identifier (for e_oeminfo)
-    res.e_oeminfo = ms:readUInt16();            -- OEM information; e_oemid specific
-        ms:skip(10*2);                          -- e_res2, basetype="uint16_t", repeating=10},  -- Reserved s
-    res.e_lfanew = ms:readUInt32();             -- File address of new exe header
-    
-    return res;
-end
 
 function peparser.readCOFF(self, res)
     
@@ -367,18 +290,7 @@ function peparser.readSectionHeaders(self)
 end
 
 
-function peparser.readPESignature(self)
-    local ntheadertype = self.SourceStream:readBytes(4);
-    if not IsPEFormatImageFile(ntheadertype) then
-        return false, "not PE Format Image File"
-    end
 
-    self.PEHeader = {
-        signature = ntheadertype;
-    }
-
-    return ntheadertype;
-end
 
 function peparser.readPEOptionalHeader(self)
     local function IsPe32Header(sig)
@@ -420,15 +332,19 @@ function peparser.parse(self, ms)
     local err = false;
     self.DOS, err = parse_DOS(ms);
 
-    --local DOSHeader, err, sig = self:readDOSHeader();
     if not self.DOS then 
         return false, err;
     end
 
-
+    -- seek to the PE signature
     -- The stream should now be located at the 'PE' signature
     -- we assume we can only read Portable Executable
     -- anything else is an error
+
+    ms:seek(self.DOS.DOSHeader.e_lfanew)
+    self.COFF, err = parse_COFF(ms);
+
+    --[[
     local pesig, err = self:readPESignature()
 
     if not pesig then
@@ -449,7 +365,7 @@ function peparser.parse(self, ms)
     -- Now that we have section information, we should
     -- be able to read detailed directory information
     self:readDirectoryData()
-
+--]]
     return self
 end
 
