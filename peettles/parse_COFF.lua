@@ -83,7 +83,7 @@ local function parse_COFF(ms, res)
 
     -- We expect to see 'PE' as an indicator that what is
     -- to follow is in fact a PE file.  If not, we quit early
-    local ntheadertype = bs:readBytes(4);
+    local ntheadertype = ms:readBytes(4);
     if not IsPEFormatImageFile(ntheadertype) then
         return false, "not PE Format Image File"
     end
@@ -94,11 +94,11 @@ local function parse_COFF(ms, res)
     res.COFF, err = readHeader(ms);
 
     --print("COFF, sizeOfOptionalHeader: ", self.COFF.SizeOfOptionalHeader)
-    if res.COFF.sizeOfOptionalHeader < 1 then
+    if res.COFF.SizeOfOptionalHeader < 1 then
         return res;
     end
 
-
+--[[
     readPEOptionalHeader(ms, res.PEHeader);
 
 
@@ -108,6 +108,7 @@ local function parse_COFF(ms, res)
     -- Now that we have section information, we should
     -- be able to read detailed directory information
     res.Directory = readDirectoryData(ms)
+--]]
 end
 
 return parse_COFF;
