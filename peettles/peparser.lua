@@ -55,29 +55,6 @@ function peparser.fromData(self, data, size)
 end
 
 
-
-
-
-
-
-
-
-function peparser.readCOFF(self, res)
-    
-    local ms = self.SourceStream;
-    res = res or {}
-
-    res.Machine = ms:readWORD();
-    res.NumberOfSections = ms:readWORD();     -- Windows loader limits to 96
-    res.TimeDateStamp = ms:readDWORD();
-    res.PointerToSymbolTable = ms:readDWORD();
-    res.NumberOfSymbols = ms:readDWORD();
-    res.SizeOfOptionalHeader = ms:readWORD();
-    res.Characteristics = ms:readWORD();
-
-    return res;
-end
-
 --[[
     In the context of a PEHeader, a directory is a simple
     structure containing a virtual address, and a size
@@ -344,28 +321,7 @@ function peparser.parse(self, ms)
     ms:seek(self.DOS.DOSHeader.e_lfanew)
     self.COFF, err = parse_COFF(ms);
 
-    --[[
-    local pesig, err = self:readPESignature()
 
-    if not pesig then
-        return false, err;
-    end
-
-    self.PESignature = pesig;
-    self.COFF = self:readCOFF();
-
-    --print("COFF, sizeOfOptionalHeader: ", self.COFF.SizeOfOptionalHeader)
-    if self.COFF.SizeOfOptionalHeader > 0 then
-        self:readPEOptionalHeader();
-    end
-
-    -- Now offset should be positioned at the section table
-    self:readSectionHeaders()
-
-    -- Now that we have section information, we should
-    -- be able to read detailed directory information
-    self:readDirectoryData()
---]]
     return self
 end
 

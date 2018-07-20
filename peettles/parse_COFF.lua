@@ -91,16 +91,23 @@ local function parse_COFF(ms, res)
     res.Signature = ntheadertype;
 
     local err = false;
-    self.COFF, err = self:readCOFF();
+    res.COFF, err = readHeader(ms);
 
     --print("COFF, sizeOfOptionalHeader: ", self.COFF.SizeOfOptionalHeader)
-    if self.COFF.SizeOfOptionalHeader > 0 then
-        self:readPEOptionalHeader();
+    if res.COFF.sizeOfOptionalHeader < 1 then
+        return res;
     end
 
--- Now offset should be positioned at the section table
-self:readSectionHeaders()
 
--- Now that we have section information, we should
--- be able to read detailed directory information
-self:readDirectoryData()
+    readPEOptionalHeader(ms, res.PEHeader);
+
+
+    -- Now offset should be positioned at the section table
+    res.Sections = readSectionHeaders(ms)
+
+    -- Now that we have section information, we should
+    -- be able to read detailed directory information
+    res.Directory = readDirectoryData(ms)
+end
+
+return parse_COFF;
