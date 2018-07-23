@@ -2,6 +2,7 @@ package.path = "../?.lua;"..package.path
 
 local ffi = require("ffi")
 local bit = require("bit")
+local disasm = require("dis_x86")
 
 local enum = require("peettles.enum")
 local peinfo = require("peettles.peparser")
@@ -29,6 +30,11 @@ local function printData(data, size)
         verbose = false;
     }
 end
+local function disassemble(stub)
+	print("== DISASSEMBLE ==")
+	local code = ffi.string(stub.Data, stub.Size)
+	disasm.disass(code, stub.Offset, out);
+end
 
 local function printDOSInfo(pecoff)
     local info = pecoff.DOS;
@@ -45,7 +51,7 @@ local function printDOSInfo(pecoff)
 	print(string.format("              Size = 0x%04x;", info.DOSStub.Size))
 	print("    };")
 	-- print the stub in base64
-	--printData(info.DOSStub, info.DOSStubSize);
+	disassemble(info.DOSStub);
 	print("  };")
 end
 

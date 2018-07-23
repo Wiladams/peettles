@@ -3,6 +3,12 @@
 
     Plenty of stuff to go in here.  For now, just a
     dumping ground of ideas, bits and bobbles
+
+    there are plenty of disassemblers available.  LuaJIT
+    itself even has dis_x86.lua in the 'jit' directory.
+    So, why bother?  Because I want to learn how to 
+    do this from reading intel docs and other examples.
+        Simply for understanding
 --]]
 
 --[[
@@ -209,3 +215,6 @@ local OneByteOpCodes = {
     
 }
 
+return {
+    opcodes = OneByteOpCodes;
+}
