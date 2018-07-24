@@ -28,7 +28,7 @@ end
 
 local function test_multiple()
 	for entry in wfs:getItems(basepath) do
-		print(entry.Name);
+		print(entry.Name, entry:attributeString());
 	end
 end
 
