@@ -5,6 +5,7 @@ local band = bit.band;
 
 local w32 = require("peettles.w32")
 local Collections = require("Collections");
+local enum = require("peettles.enum")
 
 ffi.cdef[[
 static const int MAX_PATH = 260;
@@ -99,6 +100,25 @@ static const int FILE_ATTRIBUTE_ENCRYPTED            = 0x00004000;
 static const int FILE_ATTRIBUTE_VIRTUAL              = 0x00010000;  
 ]]
 
+local FileAttributes = enum {
+	FILE_ATTRIBUTE_READONLY             = 0x00000001;  
+	FILE_ATTRIBUTE_HIDDEN               = 0x00000002;  
+	FILE_ATTRIBUTE_SYSTEM               = 0x00000004;  
+	FILE_ATTRIBUTE_DIRECTORY            = 0x00000010;  
+	FILE_ATTRIBUTE_ARCHIVE              = 0x00000020;  
+	FILE_ATTRIBUTE_DEVICE               = 0x00000040;  
+	FILE_ATTRIBUTE_NORMAL               = 0x00000080;  
+	FILE_ATTRIBUTE_TEMPORARY            = 0x00000100;  
+	FILE_ATTRIBUTE_SPARSE_FILE          = 0x00000200;  
+	FILE_ATTRIBUTE_REPARSE_POINT        = 0x00000400;  
+	FILE_ATTRIBUTE_COMPRESSED           = 0x00000800;  
+	FILE_ATTRIBUTE_OFFLINE              = 0x00001000;  
+	FILE_ATTRIBUTE_NOT_CONTENT_INDEXED  = 0x00002000;  
+	FILE_ATTRIBUTE_ENCRYPTED            = 0x00004000;  
+	FILE_ATTRIBUTE_VIRTUAL              = 0x00010000;  
+	
+}
+
 ffi.cdef[[
 HANDLE
 FindFirstFileExW(
@@ -186,64 +206,68 @@ function FileSystemItem.getPath(self)
 	return fullpath;
 end
 
+function FileSystemItem.attributeString(self)
+	return enum.bitValues(FileAttributes, self.Attributes, 32)
+end
+
 FileSystemItem.isArchive = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_ARCHIVE) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_ARCHIVE) > 0; 
 end
 
 FileSystemItem.isCompressed = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_COMPRESSED) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_COMPRESSED) > 0; 
 end
 
 FileSystemItem.isDevice = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_DEVICE) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_DEVICE) > 0; 
 end
 
 FileSystemItem.isDirectory = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_DIRECTORY) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_DIRECTORY) > 0; 
 end
 
 FileSystemItem.isEncrypted = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_ENCRYPTED) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_ENCRYPTED) > 0; 
 end
 
 FileSystemItem.isHidden = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_HIDDEN) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_HIDDEN) > 0; 
 end
 
 FileSystemItem.isNormal = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_NORMAL) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_NORMAL) > 0; 
 end
 
 FileSystemItem.isNotContentIndexed = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_NOT_CONTENT_INDEXED) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_NOT_CONTENT_INDEXED) > 0; 
 end
 
 FileSystemItem.isOffline = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_OFFLINE) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_OFFLINE) > 0; 
 end
 
 FileSystemItem.isReadOnly = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_READONLY) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_READONLY) > 0; 
 end
 
 FileSystemItem.isReparsePoint = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_REPARSE_POINT) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_REPARSE_POINT) > 0; 
 end
 
 FileSystemItem.isSparse = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_SPARSE_FILE) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_SPARSE_FILE) > 0; 
 end
 
 FileSystemItem.isSystem = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_SYSTEM) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_SYSTEM) > 0; 
 end
 
 FileSystemItem.isTemporary = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_TEMPORARY) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_TEMPORARY) > 0; 
 end
 
 FileSystemItem.isVirtual = function(self)
-	return band(self.Attributes, ffi.C.FILE_ATTRIBUTE_VIRTUAL) > 0; 
+	return band(self.Attributes, FileAttributes.FILE_ATTRIBUTE_VIRTUAL) > 0; 
 end
 
 
