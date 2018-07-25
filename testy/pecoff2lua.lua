@@ -3,6 +3,7 @@ package.path = "../?.lua;"..package.path
 local ffi = require("ffi")
 local bit = require("bit")
 local disasm = require("dis_x86")
+local disasm64 = require("dis_x64")
 
 local enum = require("peettles.enum")
 local peinfo = require("peettles.peparser")
@@ -31,7 +32,6 @@ local function printData(data, size)
     }
 end
 local function disassemble(stub)
-	print("== DISASSEMBLE ==")
 	local code = ffi.string(stub.Data, stub.Size)
 	disasm.disass(code, stub.Offset, out);
 end
@@ -49,9 +49,12 @@ local function printDOSInfo(pecoff)
 	print("    Stub = {")
 	print(string.format("            Offset = 0x%04X;", info.DOSStub.Offset))
 	print(string.format("              Size = 0x%04x;", info.DOSStub.Size))
+	print("              Code = [[")
+	disassemble(info.DOSStub);
+	print("]];");
 	print("    };")
 	-- print the stub in base64
-	disassemble(info.DOSStub);
+
 	print("  };")
 end
 
@@ -59,6 +62,7 @@ local function printCOFF(reader)
 	local info = reader.COFF;
 
 	print("  COFF  = {")
+	print(string.format("Signature ='%c%c';", info.Signature[0], info.Signature[1]))
     print(string.format("                 Machine = 0x%X; ", info.Machine));      -- peenums.MachineType[info.Machine]);
 	print(string.format("        NumberOfSections = %d;", info.NumberOfSections));
 	print(string.format("           TimeDateStamp = 0x%X;", info.TimeDateStamp));
@@ -96,9 +100,11 @@ end
 
 
 local function printSectionHeaders(reader)
-
+for k,v in pairs(reader.COFF.PEHeader) do
+	print(k,v)
+end
 	print("  Sections = {")
-	for name,section in pairs(reader.Sections) do
+	for name,section in pairs(reader.COFF.Sections) do
 		print(string.format("    ['%s'] = {", name))
 		print(string.format("             VirtualSize = 0x%08X;", section.VirtualSize))
 		print(string.format("          VirtualAddress = 0x%08X;", section.VirtualAddress))
@@ -286,10 +292,10 @@ local function main()
 	print(string.format("local pecoff = { "))
 	--print(string.format("  Name = '%s';", filename))
 	printDOSInfo(info)
-	--printCOFF(info)
+	printCOFF(info)
 	--printOptionalHeader(info)
 	--printDataDirectory(info)
-	--printSectionHeaders(info)
+	printSectionHeaders(info)
 	--printImports(info)
 	--printExports(info)
 	--printResources(info)
