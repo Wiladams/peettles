@@ -50,7 +50,8 @@ local function printDOSInfo(pecoff)
 	print(string.format("            Offset = 0x%04X;", info.DOSStub.Offset))
 	print(string.format("              Size = 0x%04x;", info.DOSStub.Size))
 	print("              Code = [[")
-	disassemble(info.DOSStub);
+	--disassemble(info.DOSStub);
+	printData(info.DOSStub.Data, info.DOSStub.Size);
 	print("]];");
 	print("    };")
 	-- print the stub in base64
@@ -62,7 +63,7 @@ local function printCOFF(reader)
 	local info = reader.COFF;
 
 	print("  COFF  = {")
-	print(string.format("Signature ='%c%c';", info.Signature[0], info.Signature[1]))
+	print(string.format("               Signature ='%c%c';", info.Signature[0], info.Signature[1]))
     print(string.format("                 Machine = 0x%X; ", info.Machine));      -- peenums.MachineType[info.Machine]);
 	print(string.format("        NumberOfSections = %d;", info.NumberOfSections));
 	print(string.format("           TimeDateStamp = 0x%X;", info.TimeDateStamp));
@@ -74,8 +75,8 @@ local function printCOFF(reader)
 end
 
 local function printOptionalHeader(peinfo)
-	local info = peinfo.PEHeader
-	
+	local info = peinfo.COFF.PEHeader
+
 	if not info then
 		return  false, "No Optional Header Info"
 	end
@@ -93,16 +94,14 @@ local function printOptionalHeader(peinfo)
 	if info.BaseOfData then
 		print(string.format("            BaseOfData = 0x%08X", info.BaseOfData))
 	end
-
+	print(string.format("               OSVersion = '%d.%02d'",	info.MajorOperatingSystemVersion,	info.MinorOperatingSystemVersion));
 	print(string.format("    NumberOfRvasAndSizes = %d;", info.NumberOfRvaAndSizes))
 	print("  };")
 end
 
 
 local function printSectionHeaders(reader)
-for k,v in pairs(reader.COFF.PEHeader) do
-	print(k,v)
-end
+
 	print("  Sections = {")
 	for name,section in pairs(reader.COFF.Sections) do
 		print(string.format("    ['%s'] = {", name))
@@ -121,7 +120,9 @@ end
 end
 
 local function printDataDirectory(reader)
-	local dirs = reader.PEHeader.Directories
+	local dirs = reader.COFF.PEHeader.Directories
+	if not dirs then return false end
+
 	print("  Directories = {")
 	for name,dir in pairs(dirs) do
 		--print(name, dir)
@@ -133,7 +134,8 @@ local function printDataDirectory(reader)
 				sectionName = sec.Name
 			end
 		end
-		print(string.format("    %22s = {VirtualAddress = 0x%08X,  Size= 0x%08X,  Section='%s'};",  name, vaddr, dir.Size, sectionName))
+		--print(string.format("    %22s = {VirtualAddress = 0x%08X,  Size= 0x%08X,  Section='%s'};",  name, vaddr, dir.Size, sectionName))
+		print(string.format("    %22s = {VirtualAddress = 0x%08X,  Size= 0x%08X,  Section='%s'};",  name, vaddr, dir.Size))
 	end
 	print("  };")
 end
@@ -290,12 +292,11 @@ local function main()
 	end
 
 	print(string.format("local pecoff = { "))
-	--print(string.format("  Name = '%s';", filename))
 	printDOSInfo(info)
 	printCOFF(info)
-	--printOptionalHeader(info)
-	--printDataDirectory(info)
+	printOptionalHeader(info)
 	printSectionHeaders(info)
+	printDataDirectory(info)
 	--printImports(info)
 	--printExports(info)
 	--printResources(info)

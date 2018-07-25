@@ -6,9 +6,9 @@ local binstream = require("peettles.binstream")
 local peenums = require("peettles.penums")
 local putils = require("peettles.print_utils")
 
-
-
-
+local parse_exports = require("peettles.parse_exports")
+local parse_imports = require("peettles.parse_imports")
+local parse_resources = require("peettles.parse_resources")
 
 
 
@@ -16,9 +16,13 @@ local putils = require("peettles.print_utils")
 -- Given an RVA, look up the section header that encloses it 
 -- return the table that represents that section
 --
-local function GetEnclosingSectionHeader(sections, rva)
+local section_t = {}
+local section_mt = {
+    __index = section_t;
+}
+function section_t.GetEnclosingSection(sections, rva)
     --print("==== EnclosingSection: ", rva)
-    for secname, section in pairs(self.Sections) do
+    for secname, section in pairs(sections) do
         -- Is the RVA within this section?
         local pos = rva - section.VirtualAddress;
         if pos >= 0 and pos < section.VirtualSize then
@@ -33,16 +37,14 @@ end
 -- There are many values within the file which are 'RVA' (Relative Virtual Address)
 -- In order to translate this RVA into a file offset, we use the following
 -- function.
-local function fileOffsetFromRVA(sections, rva)
-    local section, pos = GetEnclosingSectionHeader(sections, rva);
+function section_t.fileOffsetFromRVA(self, rva)
+    local section, pos = self:GetEnclosingSection(rva);
     if not section then return false, "section not found for rva"; end
     
     local fileOffset = section.PointerToRawData + pos;
     
     return fileOffset
 end
-
-
 
 local function stringFromBuff(buff, size)
 	local truelen = size
@@ -56,6 +58,7 @@ end
 
 function readSectionHeaders(ms, res, nsections)
     res = res or {}
+
 
     for i=1,nsections do
         local sec = {
@@ -100,6 +103,26 @@ local function readDirectoryEntry(ms, id, res)
     return res;
 end
 
+local function readDirectoryData(ms, coff, res)
+    res = res or {}
+
+    local dirNames = {
+        Exports = parse_exports;
+        Imports = parse_imports;
+        Resources = parse_resources;
+    }
+
+    for dirName, parseit in pairs(dirNames) do
+        local success, err = parseit(self);
+        if success then
+            self[dirName] = success;
+        else
+            print("ERROR PARSING: ", dirName, err);
+        end
+    end
+
+end
+
 -- Within the context of the OptionalHeader
 -- Read the IMAGE_DATA_DIRECTORY entries
 function readDirectoryTable(ms, res)
@@ -107,7 +130,7 @@ function readDirectoryTable(ms, res)
 
     -- List of directories in the order
 -- they show up in the file
-local dirNames = {
+    local dirNames = {
     "ExportTable",
     "ImportTable",
     "ResourceTable",
@@ -124,16 +147,19 @@ local dirNames = {
     "DelayImportDescriptor",
     "CLRRuntimeHeader",
     "Reserved"
-}
+    }
     
     -- Read directory index entries
-    res.Directories = {}
     for i, name in ipairs(dirNames) do
         local dir = readDirectoryEntry(ms, i-1);
         if dir.Size ~= 0 then
-            res.Directories[name] = dir;
+            dir.Name = name;
+            -- get the section as well
+            res[name] = dir;
         end
     end
+
+    return res;
 end
 
 local function readPE32Header(ms, res)
@@ -181,7 +207,7 @@ local function readPE32Header(ms, res)
     -- Read directory index entries
     -- Only save the ones that actually
     -- have data in them
-    readDirectoryTable(ms, res);
+    res.Directories = readDirectoryTable(ms);
 
     return res;
 end
@@ -225,10 +251,11 @@ local function readPE32PlusHeader(ms, res)
 		res.NumberOfRvaAndSizes = ms:readUInt32();
 
 
-    readDirectoryTable(ms, res);
+    res.Directories = readDirectoryTable(ms);
 
     return res;
 end
+
 
 
 function readPEOptionalHeader(ms, res)
@@ -332,11 +359,12 @@ local function parse_COFF(ms, res)
 
 
     -- Now offset should be positioned at the section table
-    res.Sections = readSectionHeaders(ms, nil, res.PEHeader.NumberOfRvaAndSizes)
+    res.Sections = readSectionHeaders(ms, nil, res.NumberOfSections)
+    setmetatable(res.Sections, section_mt)
 
     -- Now that we have section information, we should
     -- be able to read detailed directory information
-    --res.Directory = readDirectoryData(ms)
+    res.Directory = readDirectoryData(ms, res)
 
     return res;
 end

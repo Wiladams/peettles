@@ -21,9 +21,8 @@ local peenums = require("peettles.penums")
 
 local parse_DOS = require("peettles.parse_DOS")
 local parse_COFF = require("peettles.parse_COFF")
-local parse_exports = require("peettles.parse_exports")
-local parse_imports = require("peettles.parse_imports")
-local parse_resources = require("peettles.parse_resources")
+
+
 
 local peparser = {}
 setmetatable(peparser, {
@@ -54,25 +53,6 @@ function peparser.fromData(self, data, size)
     return obj:parse(ms)
 end
 
-function peparser.readDirectoryData(self)
-    self.Directories = self.Directories or {}
-    
-    local dirNames = {
-        Exports = parse_exports;
-        Imports = parse_imports;
-        Resources = parse_resources;
-    }
-
-    for dirName, parseit in pairs(dirNames) do
-        local success, err = parseit(self);
-        if success then
-            self[dirName] = success;
-        else
-            print("ERROR PARSING: ", dirName, err);
-        end
-    end
-
-end
 
 function peparser.parse(self, ms)
     self.SourceStream = ms;
