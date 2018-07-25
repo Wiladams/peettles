@@ -108,33 +108,33 @@ local  x86_instr_flags = enum {
 };
 enum.inject(x86_instr_flags, x86_ns)
 
-local WIDTH_MASK	= bor(WIDTH_BYTE|WIDTH_FULL);
-local IMM_MASK		= bor(SRC_IMM|SRC_IMM8);
+local WIDTH_MASK	= bor(WIDTH_BYTE,WIDTH_FULL);
+local IMM_MASK		= bor(SRC_IMM,SRC_IMM8);
 local REL_MASK		= SRC_REL;
-local SRC_MASK		= bor(SRC_NONE|IMM_MASK|REL_MASK|SRC_REG|SRC_SEG_REG|SRC_ACC|SRC_MEM|SRC_MOFFSET|SRC_MEM_DISP_BYTE|SRC_MEM_DISP_FULL);
+local SRC_MASK		= bor(SRC_NONE,IMM_MASK,REL_MASK,SRC_REG,SRC_SEG_REG,SRC_ACC,SRC_MEM,SRC_MOFFSET,SRC_MEM_DISP_BYTE,SRC_MEM_DISP_FULL);
 
-local DST_MASK		= bor(DST_NONE|DST_REG|DST_ACC|DST_MOFFSET|DST_MEM|DST_MEM_DISP_BYTE|DST_MEM_DISP_FULL);
+local DST_MASK		= bor(DST_NONE,DST_REG,DST_ACC,DST_MOFFSET,DST_MEM,DST_MEM_DISP_BYTE,DST_MEM_DISP_FULL);
 
-local MEM_DISP_MASK	= bor(SRC_MEM|SRC_MEM_DISP_BYTE|SRC_MEM_DISP_FULL|DST_MEM|DST_MEM_DISP_BYTE|DST_MEM_DISP_FULL);
+local MEM_DISP_MASK	= bor(SRC_MEM,SRC_MEM_DISP_BYTE,SRC_MEM_DISP_FULL,DST_MEM,DST_MEM_DISP_BYTE,DST_MEM_DISP_FULL);
 
-local MOFFSET_MASK	= bor(SRC_MOFFSET|DST_MOFFSET);
+local MOFFSET_MASK	= bor(SRC_MOFFSET,DST_MOFFSET);
 local GROUP_MASK	= GROUP_2;
 
 --	Addressing modes.
 local x86_addmode = enum {
-	ADDMODE_ACC_MOFFSET	= bor(SRC_ACC|DST_MOFFSET);		-- AL/AX . moffset 
-	ADDMODE_ACC_REG		= bor(SRC_ACC|DST_REG);		-- AL/AX . reg 
-	ADDMODE_IMM			= bor(SRC_IMM|DST_NONE);		-- immediate operand 
-	ADDMODE_IMM8_RM		= bor(SRC_IMM8|MOD_RM|DIR_REVERSED);	-- immediate . register/memory 
-	ADDMODE_IMM_ACC		= bor(SRC_IMM|DST_ACC);		-- immediate . AL/AX 
-	ADDMODE_IMM_REG		= bor(SRC_IMM|DST_REG);		-- immediate . register 
-	ADDMODE_IMPLIED		= bor(SRC_NONE|DST_NONE);		-- no operands 
-	ADDMODE_MOFFSET_ACC	= bor(SRC_MOFFSET|DST_ACC);		-- moffset . AL/AX 
-	ADDMODE_REG			= bor(SRC_REG|DST_NONE);		-- register 
-	ADDMODE_SEG_REG		= bor(SRC_SEG_REG|DST_NONE);		-- segment register 
-	ADDMODE_REG_RM		= bor(SRC_REG|MOD_RM|DIR_REVERSED);	-- register . register/memory 
-	ADDMODE_REL			= bor(SRC_REL|DST_NONE);		-- relative 
-	ADDMODE_RM_REG		= bor(DST_REG|MOD_RM);		-- register/memory . register 
+	ADDMODE_ACC_MOFFSET	= bor(SRC_ACC,DST_MOFFSET);		-- AL/AX . moffset 
+	ADDMODE_ACC_REG		= bor(SRC_ACC,DST_REG);		-- AL/AX . reg 
+	ADDMODE_IMM			= bor(SRC_IMM,DST_NONE);		-- immediate operand 
+	ADDMODE_IMM8_RM		= bor(SRC_IMM8,MOD_RM,DIR_REVERSED);	-- immediate . register/memory 
+	ADDMODE_IMM_ACC		= bor(SRC_IMM,DST_ACC);		-- immediate . AL/AX 
+	ADDMODE_IMM_REG		= bor(SRC_IMM,DST_REG);		-- immediate . register 
+	ADDMODE_IMPLIED		= bor(SRC_NONE,DST_NONE);		-- no operands 
+	ADDMODE_MOFFSET_ACC	= bor(SRC_MOFFSET,DST_ACC);		-- moffset . AL/AX 
+	ADDMODE_REG			= bor(SRC_REG,DST_NONE);		-- register 
+	ADDMODE_SEG_REG		= bor(SRC_SEG_REG,DST_NONE);		-- segment register 
+	ADDMODE_REG_RM		= bor(SRC_REG,MOD_RM,DIR_REVERSED);	-- register . register/memory 
+	ADDMODE_REL			= bor(SRC_REL,DST_NONE);		-- relative 
+	ADDMODE_RM_REG		= bor(DST_REG,MOD_RM);		-- register/memory . register 
 };
 enum.inject(x86_addmode, x86_ns)
 
@@ -180,8 +180,8 @@ local X86_INSTR_TYPE_MASK	= 0xff;
 
 local INSTR_UNDEFINED		= 0;
 
-local Jb = bor(ADDMODE_REL | WIDTH_BYTE)
-local Jv = bor(ADDMODE_REL | WIDTH_FULL)
+local Jb = bor(ADDMODE_REL , WIDTH_BYTE)
+local Jv = bor(ADDMODE_REL , WIDTH_FULL)
 
 local decode_table = ffi.new("static const uint32_t[256]", {
 	bor(INSTR_ADD , ADDMODE_REG_RM , WIDTH_BYTE);
@@ -573,18 +573,15 @@ local function decode_imm(struct x86_instr *instr, uint8_t* RAM, addr_t *pc)
 end
 
 
-local function decode_rel(struct x86_instr *instr, uint8_t* RAM, addr_t *pc)
-
-	switch (instr.flags & WIDTH_MASK) {
-	case WIDTH_FULL:
-		instr.rel_data = read_s16(RAM, pc);
-		instr.nr_bytes += 2;
-		break;
-	case WIDTH_BYTE:
-		instr.rel_data = read_s8(RAM, pc);
-		instr.nr_bytes += 1;
-		break;
-	}
+local function decode_rel(instr, bs)
+	local flags = band(instr.flags & WIDTH_MASK)
+	if flags == WIDTH_FULL then
+		instr.rel_data = bs:readInt16();
+		instr.nr_bytes = instr.nr_bytes + 2;
+	elseif flags == WIDTH_BYTE then
+		instr.rel_data = bs:readInt8();
+		instr.nr_bytes = instr.nr_bytes + 1;
+	end
 end
 
 local function decode_moffset(instr, bs)
@@ -627,22 +624,23 @@ local  mod_src_decode = {
 };
 
 
-local function decode_modrm_byte(struct x86_instr *instr, uint8_t modrm)
+local function decode_modrm_byte(instr, modrm)
 
-	instr.mod	= (modrm & 0xc0) >> 6;
-	instr.reg_opc	= (modrm & 0x38) >> 3;
-	instr.rm	= (modrm & 0x07);
+	instr.mod		= rshift(band(modrm, 0xc0) , 6);
+	instr.reg_opc	= rshift(band(modrm, 0x38) , 3);
+	instr.rm		= band(modrm, 0x07);
 
-	if (instr.flags & DIR_REVERSED)
-		instr.flags	|= mod_dst_decode[instr.mod];
+	if band(instr.flags, DIR_REVERSED) ~= 0 then
+		instr.flags	= bor(instr.flags, mod_dst_decode[instr.mod]);
 	else
-		instr.flags	|= mod_src_decode[instr.mod];
+		instr.flags	|= bor(instr.flags, mod_src_decode[instr.mod]);
+	end 
 
-	instr.nr_bytes++;
+	instr.nr_bytes = instr.nr_bytes + 1;
 end
 
 
-local function arch_8086_decode_instr(struct x86_instr *instr, bs)
+local function arch_8086_decode_instr(instr, bs)
 	instr.nr_bytes = 1;
 
 	-- Prefixes
@@ -698,20 +696,20 @@ local function arch_8086_decode_instr(struct x86_instr *instr, bs)
 		instr.type	= shift_grp2_decode_table[instr.reg_opc];
 	end
 
-	if (instr.flags & MEM_DISP_MASK) then
+	if band(instr.flags, MEM_DISP_MASK) ~= 0 then
 		decode_disp(instr, bs);
 	end
 
-	if (instr.flags & MOFFSET_MASK) then
-		decode_moffset(instr, RAM, &pc);
+	if band(instr.flags, MOFFSET_MASK) ~= 0 then
+		decode_moffset(instr, bs);
 	end
 
-	if (instr.flags & IMM_MASK) then
-		decode_imm(instr, RAM, &pc);
+	if band(instr.flags, IMM_MASK) ~= 0 then
+		decode_imm(instr, bs);
 	end
 
-	if (instr.flags & REL_MASK) then
-		decode_rel(instr, RAM, &pc);
+	if band(instr.flags, REL_MASK) ~= 0 then
+		decode_rel(instr, bs);
 	end
 
 	decode_src_operand(instr);

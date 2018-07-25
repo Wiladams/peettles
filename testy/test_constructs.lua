@@ -22,3 +22,18 @@ enum.inject(x86_operand_type, namespace)
 print("_G.OP_IMM: ", _G.OP_MEM)
 print("namespace.OP_IMM: ", namespace.OP_MEM)
 print("local OP_MEM: ", OP_MEM)
+
+
+local mod_dst_decode = {
+    [0] = OP_MEM,
+    OP_SEG_REG,
+    OP_REL,
+};
+
+for idx=0,2 do 
+    print(idx, mod_dst_decode[idx])
+end
+
+for k,v in pairs(mod_dst_decode) do
+    print(k,v)
+end
