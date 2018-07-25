@@ -99,4 +99,11 @@ function enum.bitValues(tbl, value, bitsSize)
     return table.concat(res,', ')
 end
 
+function enum.inject(self, tbl)
+	tbl = tbl or _G;
+	for k,v in pairs(self) do
+		rawset(tbl, k, v);
+	end
+end
+
 return enum
