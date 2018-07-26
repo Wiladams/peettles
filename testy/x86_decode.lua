@@ -21,10 +21,12 @@ setfenv(1, x86_ns)
 local ffi = require("ffi")
 local bit = require("bit")
 local lshift, rshift = bit.lshift, bit.rshift
-local bor, band = bit.bor, bit.band
+local bor, band, bnot = bit.bor, bit.band, bit.bnot
 
 local enum = require("peettles.enum")
 
+local x86_instructions = require("x86_instructions")
+enum.inject(x86_instructions, x86_ns)
 
 local x86_operand_type = enum {
 	OP_IMM = 0,
@@ -138,25 +140,37 @@ local x86_addmode = enum {
 };
 enum.inject(x86_addmode, x86_ns)
 
---[[
+ffi.cdef[[
+	struct x86_operand {
+		int	type;
+		uint8_t			reg;
+		int32_t			disp;		/* address displacement can be negative */
+		union {
+			uint32_t		imm;
+			int32_t			rel;
+		};
+	};
+]]
+
+ffi.cdef[[
 struct x86_instr {
 	unsigned long		nr_bytes;
 
-	uint8_t			opcode;		-- Opcode byte 
+	uint8_t			opcode;		// Opcode byte 
 	uint8_t			width;
-	uint8_t			mod;		-- Mod 
-	uint8_t			rm;		-- R/M 
-	uint8_t			reg_opc;	-- Reg/Opcode 
-	uint32_t		disp;		-- Address displacement 
+	uint8_t			mod;		// Mod 
+	uint8_t			rm;		// R/M 
+	uint8_t			reg_opc;	// Reg/Opcode 
+	uint32_t		disp;		// Address displacement 
 	union {
-		uint32_t		imm_data;	-- Immediate data 
-		int32_t			rel_data;	-- Relative address data 
+		uint32_t		imm_data;	// Immediate data 
+		int32_t			rel_data;	// Relative address data 
 	};
 
-	unsigned long		type;		-- See enum x86_instr_types 
-	unsigned long		flags;		-- See enum x86_instr_flags 
-	enum x86_seg_override	seg_override;
-	enum x86_rep_prefix	rep_prefix;
+	unsigned long		type;		// See enum x86_instr_types 
+	unsigned long		flags;		// See enum x86_instr_flags 
+	int	seg_override;		// enum x86_seg_override
+	int	rep_prefix;			// enum x86_rep_prefix
 	unsigned char		lock_prefix;
 	struct x86_operand	src;
 	struct x86_operand	dst;
@@ -183,7 +197,7 @@ local INSTR_UNDEFINED		= 0;
 local Jb = bor(ADDMODE_REL , WIDTH_BYTE)
 local Jv = bor(ADDMODE_REL , WIDTH_FULL)
 
-local decode_table = ffi.new("static const uint32_t[256]", {
+local decode_table = ffi.new("const uint32_t[256]", {
 	bor(INSTR_ADD , ADDMODE_REG_RM , WIDTH_BYTE);
 	bor(INSTR_ADD , ADDMODE_REG_RM , WIDTH_FULL);
 	bor(INSTR_ADD , ADDMODE_RM_REG , WIDTH_BYTE);
@@ -222,7 +236,7 @@ local decode_table = ffi.new("static const uint32_t[256]", {
 		bor(INSTR_AND , ADDMODE_RM_REG , WIDTH_FULL);
 		bor(INSTR_AND , ADDMODE_IMM_ACC , WIDTH_BYTE);
 		bor(INSTR_AND , ADDMODE_IMM_ACC , WIDTH_FULL);
-		0 -- ES_OVERRIDE );
+		0; -- ES_OVERRIDE );
 		bor(INSTR_DAA , ADDMODE_IMPLIED);
 		bor(INSTR_SUB , ADDMODE_REG_RM , WIDTH_BYTE);
 		bor(INSTR_SUB , ADDMODE_REG_RM , WIDTH_FULL);
@@ -230,7 +244,7 @@ local decode_table = ffi.new("static const uint32_t[256]", {
 		bor(INSTR_SUB , ADDMODE_RM_REG , WIDTH_FULL);
 		bor(INSTR_SUB , ADDMODE_IMM_ACC , WIDTH_BYTE);
 		bor(INSTR_SUB , ADDMODE_IMM_ACC , WIDTH_FULL);
-		0 -- CS_OVERRIDE );
+		0; -- CS_OVERRIDE );
 		bor(INSTR_DAS , ADDMODE_IMPLIED);
 		bor(INSTR_XOR , ADDMODE_REG_RM , WIDTH_BYTE);
 		bor(INSTR_XOR , ADDMODE_REG_RM , WIDTH_FULL);
@@ -238,7 +252,7 @@ local decode_table = ffi.new("static const uint32_t[256]", {
 		bor(INSTR_XOR , ADDMODE_RM_REG , WIDTH_FULL);
 		bor(INSTR_XOR , ADDMODE_IMM_ACC , WIDTH_BYTE);
 		bor(INSTR_XOR , ADDMODE_IMM_ACC , WIDTH_FULL);
-		0 -- SS_OVERRIDE );
+		0; -- SS_OVERRIDE );
 		bor(INSTR_AAA , ADDMODE_IMPLIED);
 		bor(INSTR_CMP , ADDMODE_REG_RM , WIDTH_BYTE);
 		bor(INSTR_CMP , ADDMODE_REG_RM , WIDTH_FULL);
@@ -246,7 +260,7 @@ local decode_table = ffi.new("static const uint32_t[256]", {
 		bor(INSTR_CMP , ADDMODE_RM_REG , WIDTH_FULL);
 		bor(INSTR_CMP , ADDMODE_IMM_ACC , WIDTH_BYTE);
 		bor(INSTR_CMP , ADDMODE_IMM_ACC , WIDTH_FULL);
-		0 -- DS_OVERRIDE );
+		0; -- DS_OVERRIDE );
 		bor(INSTR_AAS , ADDMODE_IMPLIED);
 		bor(INSTR_INC , ADDMODE_REG , WIDTH_FULL);
 		bor(INSTR_INC , ADDMODE_REG , WIDTH_FULL);
@@ -312,22 +326,22 @@ local decode_table = ffi.new("static const uint32_t[256]", {
 		bor(INSTR_JGE , Jb);
 		bor(INSTR_JLE , Jb);
 		bor(INSTR_JG  , Jb);
-		0);
-		0);
-		0);
-		0);
+		0;
+		0;
+		0;
+		0;
 		bor(INSTR_TEST , ADDMODE_REG_RM , WIDTH_BYTE);
 		bor(INSTR_TEST , ADDMODE_REG_RM , WIDTH_FULL);
-		0);
-		0);
+		0;
+		0;
 		bor(INSTR_MOV , ADDMODE_REG_RM , WIDTH_BYTE);
 		bor(INSTR_MOV , ADDMODE_REG_RM , WIDTH_FULL);
 		bor(INSTR_MOV , ADDMODE_RM_REG , WIDTH_BYTE);
 		bor(INSTR_MOV , ADDMODE_RM_REG , WIDTH_FULL);
-		0);
+		0;
 		bor(INSTR_LEA , ADDMODE_RM_REG , WIDTH_FULL);
-		0);
-		0);
+		0;
+		0;
 		bor(INSTR_NOP , ADDMODE_IMPLIED);	-- xchg ax); ax 
 		bor(INSTR_XCHG , ADDMODE_ACC_REG , WIDTH_FULL);
 		bor(INSTR_XCHG , ADDMODE_ACC_REG , WIDTH_FULL);
@@ -338,8 +352,8 @@ local decode_table = ffi.new("static const uint32_t[256]", {
 		bor(INSTR_XCHG , ADDMODE_ACC_REG , WIDTH_FULL);
 		bor(INSTR_CBW , ADDMODE_IMPLIED);
 		bor(INSTR_CWD , ADDMODE_IMPLIED);
-		0);
-		0);
+		0;
+		0;
 		bor(INSTR_PUSHF , ADDMODE_IMPLIED);
 		bor(INSTR_POPF , ADDMODE_IMPLIED);
 		bor(INSTR_SAHF , ADDMODE_IMPLIED);
@@ -352,8 +366,8 @@ local decode_table = ffi.new("static const uint32_t[256]", {
 		bor(INSTR_MOVSW , ADDMODE_IMPLIED , WIDTH_FULL);
 		bor(INSTR_CMPSB , ADDMODE_IMPLIED , WIDTH_BYTE);
 		bor(INSTR_CMPSW , ADDMODE_IMPLIED , WIDTH_FULL);
-		0);
-		0);
+		0;
+		0;
 		bor(INSTR_STOSB , ADDMODE_IMPLIED , WIDTH_BYTE);
 		bor(INSTR_STOSW , ADDMODE_IMPLIED , WIDTH_FULL);
 		bor(INSTR_LODSB , ADDMODE_IMPLIED , WIDTH_BYTE);
@@ -377,7 +391,7 @@ local decode_table = ffi.new("static const uint32_t[256]", {
 		bor(INSTR_MOV , ADDMODE_IMM_REG , WIDTH_FULL);
 		bor(INSTR_MOV , ADDMODE_IMM_REG , WIDTH_FULL);
 		bor(GROUP_2 , ADDMODE_IMM8_RM , WIDTH_BYTE);
-		BOR(GROUP_2 , ADDMODE_IMM8_RM , WIDTH_FULL);
+		bor(GROUP_2 , ADDMODE_IMM8_RM , WIDTH_FULL);
 		0;
 		bor(INSTR_RET , ADDMODE_IMPLIED);
 		0;
@@ -424,7 +438,7 @@ local decode_table = ffi.new("static const uint32_t[256]", {
 	0;
 	0;
 	0;
-	0 -- LOCK
+	0; -- LOCK
 	INSTR_UNDEFINED;
 	0; -- REPNZ_PREFIX
 	0; -- REPZ_PREFIX
@@ -440,7 +454,7 @@ local decode_table = ffi.new("static const uint32_t[256]", {
 	bor(INSTR_STD , ADDMODE_IMPLIED);
 	0;
 	0;
-};
+});
 
 local shift_grp2_decode_table = {
 	[0] = 	INSTR_ROL,
@@ -457,7 +471,7 @@ local shift_grp2_decode_table = {
 local function decode_dst_reg(instr)
 
 	if (band(instr.flags, MOD_RM) == 0) then
-		return instr.opcode & 0x07;
+		return band(instr.opcode , 0x07);
 	end
 
 	if band (instr.flags, DIR_REVERSED) ~= 0 then
@@ -469,36 +483,32 @@ end
 
 local function decode_dst_operand(instr)
 
-	struct x86_operand *operand = &instr.dst;
-
-	switch (instr.flags & DST_MASK) {
-	case DST_NONE:
-		break;
-	case DST_REG:
+	local operand = instr.dst;
+	local flags = band(instr.flags, DST_MASK)
+	
+	if flags == DST_NONE then
+		-- do nothing
+	elseif flags == DST_REG then
 		operand.type	= OP_REG;
-		operand.reg	= decode_dst_reg(instr);
-		break;
-	case DST_ACC:
+		operand.reg		= decode_dst_reg(instr);
+	elseif (flags == DST_ACC) then
 		operand.type	= OP_REG;
-		operand.reg	= 0; -- AL/AX 
-		break;
-	case DST_MOFFSET:
-	case DST_MEM:
+		operand.reg		= 0; -- AL/AX 
+	elseif (flags == DST_MOFFSET) or (flags == DST_MEM) then
 		operand.type	= OP_MEM;
 		operand.disp	= instr.disp;
-		break;
-	case DST_MEM_DISP_BYTE:
-	case DST_MEM_DISP_FULL:
+	elseif (flags == DST_MEM_DISP_BYTE) or (flags == DST_MEM_DISP_FULL) then
 		operand.type	= OP_MEM_DISP;
-		operand.reg	= instr.rm;
+		operand.reg		= instr.rm;
 		operand.disp	= instr.disp;
-		break;
-	}
+	end
+
+	return true;
 end
 
 local function decode_src_reg(instr)
-	if (band(instr.flags, MOD_RM) == 0) then
-		return instr.opcode & 0x07;
+	if band(instr.flags, MOD_RM) == 0 then
+		return band(instr.opcode, 0x07);
 	end
 
 	if band(instr.flags, DIR_REVERSED) ~= 0 then
@@ -509,72 +519,73 @@ local function decode_src_reg(instr)
 end
 
 
-local function decode_src_operand(struct x86_instr *instr)
+local function decode_src_operand(instr)
 
-	struct x86_operand *operand = &instr.src;
+	local operand = instr.src;
+	local flags = band(instr.flags, SRC_MASK)
 
-	switch (instr.flags & SRC_MASK) {
-	case SRC_NONE:
-		break;
-	case SRC_REL:
+	if flags == SRC_NONE then
+		-- do nothing break;
+	elseif flags == SRC_REL then
 		operand.type	= OP_REL;
 		operand.rel	= instr.rel_data;
-		break;
-	case SRC_IMM:
-	case SRC_IMM8:
+
+	elseif flags == SRC_IMM or
+		flags == SRC_IMM8 then
 		operand.type	= OP_IMM;
 		operand.imm	= instr.imm_data;
-		break;
-	case SRC_REG:
+	
+	elseif flags == SRC_REG then
 		operand.type	= OP_REG;
 		operand.reg	= decode_src_reg(instr);
-		break;
-	case SRC_SEG_REG:
+
+	elseif flags == SRC_SEG_REG then
 		operand.type	= OP_SEG_REG;
-		operand.reg	= instr.opcode >> 3;
-		break;
-	case SRC_ACC:
+		operand.reg	= rshift(instr.opcode, 3);
+
+	elseif flags == SRC_ACC then
 		operand.type	= OP_REG;
 		operand.reg	= 0; -- AL/AX 
-		break;
-	case SRC_MOFFSET:
-	case SRC_MEM:
+
+	elseif flags == SRC_MOFFSET or
+		flags == SRC_MEM then
 		operand.type	= OP_MEM;
 		operand.disp	= instr.disp;
-		break;
-	case SRC_MEM_DISP_BYTE:
-	case SRC_MEM_DISP_FULL:
+	elseif flags == SRC_MEM_DISP_BYTE or
+		flags == SRC_MEM_DISP_FULL then
 		operand.type	= OP_MEM_DISP;
 		operand.reg	= instr.rm;
 		operand.disp	= instr.disp;
-	}
+	end
+
+	return true;
 end
 
 
 
-local function decode_imm(struct x86_instr *instr, uint8_t* RAM, addr_t *pc)
+local function decode_imm(instr, bs)
 
-	if (instr.flags & SRC_IMM8) {
-		instr.imm_data = read_u8(RAM, pc);
-		instr.nr_bytes += 1;
+	if band(instr.flags, SRC_IMM8) ~= 0 then
+		instr.imm_data = bs:readOctet();
+		instr.nr_bytes = instr.nr_bytes + 1;
 		return;
-	}
+	end
 
-	switch (instr.flags & WIDTH_MASK) {
-	case WIDTH_FULL:
-		instr.imm_data = read_u16(RAM, pc);
-		instr.nr_bytes += 2;
-		break;
-	case WIDTH_BYTE:
-		instr.imm_data = read_u8(RAM, pc);
-		instr.nr_bytes += 1;
-		break;
-	}
+	local flags = band(instr.flags, WIDTH_MASK)
+	if flags == WIDTH_FULL then
+		instr.imm_data = bs:readUInt16();
+		instr.nr_bytes = instr.nr_bytes + 2;
+	elseif flags == WIDTH_BYTE then
+		instr.imm_data = bs:readUInt16();
+		instr.nr_bytes = instr.nr_bytes + 1;
+	end
+
+	return true;
 end
 
 
 local function decode_rel(instr, bs)
-	local flags = band(instr.flags & WIDTH_MASK)
+	local flags = band(instr.flags, WIDTH_MASK)
 	if flags == WIDTH_FULL then
 		instr.rel_data = bs:readInt16();
 		instr.nr_bytes = instr.nr_bytes + 2;
@@ -582,31 +593,33 @@ local function decode_rel(instr, bs)
 		instr.rel_data = bs:readInt8();
 		instr.nr_bytes = instr.nr_bytes + 1;
 	end
+
+	return true;
 end
 
 local function decode_moffset(instr, bs)
 	instr.disp = bs:readUInt16();
 	instr.nr_bytes = instr.nr_bytes + 2;
+
+	return true;
 end
 
-
 local function decode_disp(instr, bs)
+	local flags = band(instr.flags, MEM_DISP_MASK)
+	if (flags == SRC_MEM_DISP_FULL) or
+		(flags ==DST_MEM_DISP_FULL) or 
+		(flags == SRC_MEM) or 
+		(flags == DST_MEM) then
 
-	switch (instr.flags & MEM_DISP_MASK) {
-	case SRC_MEM_DISP_FULL:
-	case DST_MEM_DISP_FULL:
-	case SRC_MEM:
-	case DST_MEM: {
 		instr.disp	= bs:readInt16();
 		instr.nr_bytes	= instr.nr_bytes+2;
-		break;
-	}
-	case SRC_MEM_DISP_BYTE:
-	case DST_MEM_DISP_BYTE:
+	elseif (flags == SRC_MEM_DISP_BYTE) or
+		(flags == DST_MEM_DISP_BYTE) then
 		instr.disp	= bs:readInt8();
 		instr.nr_bytes	= instr.nr_bytes + 1;
-		break;
-	}
+	end
+
+	return true;
 end
 
 local mod_dst_decode = {
@@ -633,10 +646,12 @@ local function decode_modrm_byte(instr, modrm)
 	if band(instr.flags, DIR_REVERSED) ~= 0 then
 		instr.flags	= bor(instr.flags, mod_dst_decode[instr.mod]);
 	else
-		instr.flags	|= bor(instr.flags, mod_src_decode[instr.mod]);
+		instr.flags	= bor(instr.flags, mod_src_decode[instr.mod]);
 	end 
 
 	instr.nr_bytes = instr.nr_bytes + 1;
+
+	return true;
 end
 
 
@@ -647,23 +662,24 @@ local function arch_8086_decode_instr(instr, bs)
 	instr.seg_override	= NO_OVERRIDE;
 	instr.rep_prefix	= NO_PREFIX;
 	instr.lock_prefix	= 0;
+	local opcode = -1;
 
 	while true do
-		local opcode = bs:readOctet();
+		opcode = bs:readOctet();
 
-		if opcode == 0x26:
+		if opcode == 0x26 then
 			instr.seg_override	= ES_OVERRIDE;
-		elseif opcode == 0x2e:
+		elseif opcode == 0x2e then
 			instr.seg_override	= CS_OVERRIDE;
-		elseif opcode == 0x36:
+		elseif opcode == 0x36 then
 			instr.seg_override	= SS_OVERRIDE;
-		elseif opcode == 0x3e:
+		elseif opcode == 0x3e then
 			instr.seg_override	= DS_OVERRIDE;
-		elseif opcode == 0xf0:	-- LOCK 
+		elseif opcode == 0xf0 then	-- LOCK 
 			instr.lock_prefix	= 1;
-		elseif opcode == 0xf2:	-- REPNE/REPNZ 
+		elseif opcode == 0xf2 then	-- REPNE/REPNZ 
 			instr.rep_prefix	= REPNZ_PREFIX;
-		elseif opcode == 0xf3:	-- REP/REPE/REPZ 
+		elseif opcode == 0xf3 then	-- REP/REPE/REPZ 
 			instr.rep_prefix	= REPZ_PREFIX;
 		else
 			goto done_prefixes;

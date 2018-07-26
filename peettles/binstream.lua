@@ -62,6 +62,11 @@ function binstream.remaining(self)
     return tonumber(self.size - self.cursor)
 end
 
+function binstream.EOF(self)
+    local remainder =  self:remaining()
+    return remainder < 1
+end
+
  -- move to a particular position, in bytes
 function binstream.seek(self, pos)
     -- if position specified outside of range
