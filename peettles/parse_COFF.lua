@@ -364,7 +364,7 @@ local function parse_COFF(ms, res)
 
     -- Now that we have section information, we should
     -- be able to read detailed directory information
-    res.Directory = readDirectoryData(ms, res)
+    --res.Directory = readDirectoryData(ms, res)
 
     return res;
 end

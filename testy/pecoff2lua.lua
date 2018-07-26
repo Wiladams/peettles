@@ -49,10 +49,10 @@ local function printDOSInfo(pecoff)
 	print("    Stub = {")
 	print(string.format("            Offset = 0x%04X;", info.DOSStub.Offset))
 	print(string.format("              Size = 0x%04x;", info.DOSStub.Size))
-	print("              Code = [[")
+	print("              Code = [=[")
 	--disassemble(info.DOSStub);
 	printData(info.DOSStub.Data, info.DOSStub.Size);
-	print("]];");
+	print("]=];");
 	print("    };")
 	-- print the stub in base64
 
@@ -96,6 +96,12 @@ local function printOptionalHeader(peinfo)
 	end
 	print(string.format("               OSVersion = '%d.%02d'",	info.MajorOperatingSystemVersion,	info.MinorOperatingSystemVersion));
 	print(string.format("    NumberOfRvasAndSizes = %d;", info.NumberOfRvaAndSizes))
+
+	print(string.format("             Directories = {"))
+	for name, dirEntry in pairs(info.Directories) do
+		print(string.format("               %20s = {ID = %2d, VirtualAddress = 0x%08X, size = 0x%04X};", name, dirEntry.ID, dirEntry.VirtualAddress, dirEntry.Size))
+	end
+	print("             };")
 	print("  };")
 end
 
@@ -296,7 +302,7 @@ local function main()
 	printCOFF(info)
 	printOptionalHeader(info)
 	printSectionHeaders(info)
-	printDataDirectory(info)
+	--printDataDirectory(info)
 	--printImports(info)
 	--printExports(info)
 	--printResources(info)

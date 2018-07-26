@@ -50,6 +50,6 @@ http://www.openrce.org/reference_library/files/reference/PE%20Format.pdf
 Tools
 
 * http://www.capstone-engine.org/
-
+* Very Complete disassembler: https://github.com/zyantific/zydis
 
 
