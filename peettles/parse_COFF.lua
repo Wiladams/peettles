@@ -103,7 +103,7 @@ local function readDirectoryEntry(ms, id, res)
     return res;
 end
 
-local function readDirectoryData(ms, coff, res)
+local function readDirectoryData(coffinfo, ms, res)
     res = res or {}
 
     local dirNames = {
@@ -113,14 +113,15 @@ local function readDirectoryData(ms, coff, res)
     }
 
     for dirName, parseit in pairs(dirNames) do
-        local success, err = parseit(self);
+        local success, err = parseit(ms, coffinfo);
         if success then
-            self[dirName] = success;
+            res[dirName] = success;
         else
             print("ERROR PARSING: ", dirName, err);
         end
     end
 
+    return res;
 end
 
 -- Within the context of the OptionalHeader
@@ -364,7 +365,7 @@ local function parse_COFF(ms, res)
 
     -- Now that we have section information, we should
     -- be able to read detailed directory information
-    --res.Directory = readDirectoryData(ms, res)
+    res.Directory = readDirectoryData(res, ms)
 
     return res;
 end

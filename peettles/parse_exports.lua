@@ -9,9 +9,10 @@ local binstream = require("peettles.binstream")
 local peenums = require("peettles.penums")
 local putils = require("peettles.print_utils")
 
-local function parse(self, res)
+local function parse(bs, coffinfo, res)
+
     --print("==== readDirectory_Export ====")
-    local dirTable = self.PEHeader.Directories.ExportTable
+    local dirTable = coffinfo.PEHeader.Directories.ExportTable
     if not dirTable then 
         return false , "NO EXPORT TABLE FOUND"
     end
@@ -22,18 +23,22 @@ local function parse(self, res)
         return false, "  No Virtual Address";
     end
 
+
+
+
     -- We use the directory entry to lookup the actual export table.
     -- We need to turn the VirtualAddress into an actual file offset
     -- We also want to know what section the export table is in for 
     -- forwarding comparisons
-    local exportSection = self:GetEnclosingSectionHeader(dirTable.VirtualAddress)
+    local sections = coffinfo.Sections;
+    local exportSection = sections:GetEnclosingSectionHeader(dirTable.VirtualAddress)
     local exportSectionName = exportSection.Name;
 
-    local fileOffset = self:fileOffsetFromRVA(dirTable.VirtualAddress)
+    local fileOffset = sections:fileOffsetFromRVA(dirTable.VirtualAddress)
 
     -- We now know where the actual export table exists, so 
     -- create a binary stream, and position it at the offset
-    local ms = self.SourceStream:range(dirTable.Size, fileOffset)
+    local ms = bs:range(dirTable.Size, fileOffset)
 
     -- We are now in position to read the actual export table data
     -- The data consists of various bits and pieces of information, including
@@ -52,7 +57,7 @@ local function parse(self, res)
     res.AddressOfNameOrdinals = ms:readUInt32();
 
     -- Get the internal name of the module
-    local nNameOffset = self:fileOffsetFromRVA(res.nName)
+    local nNameOffset = sections:fileOffsetFromRVA(res.nName)
     if nNameOffset then
         -- use a separate stream to read the string so we don't
         -- upset the positioning on the one that's reading
