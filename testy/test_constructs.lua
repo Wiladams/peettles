@@ -1,12 +1,9 @@
 package.path = "../?.lua;"..package.path
 
 local enum = require("peettles.enum")
+local namespace = require("namespace")()
 
--- create a namespace
-local namespace = {}
-setmetatable(namespace, {__index= _G})
-setfenv(1, namespace)
----------------------
+
 
 local x86_operand_type = enum {
 	OP_IMM = 0,
@@ -19,9 +16,9 @@ local x86_operand_type = enum {
 
 enum.inject(x86_operand_type, namespace)
 
-print("_G.OP_IMM: ", _G.OP_MEM)
-print("namespace.OP_IMM: ", namespace.OP_MEM)
-print("local OP_MEM: ", OP_MEM)
+print("_G.OP_IMM (nil): ", _G.OP_MEM)
+print("namespace.OP_IMM (1): ", namespace.OP_MEM)
+print("local OP_MEM (1): ", OP_MEM)
 
 
 local mod_dst_decode = {
