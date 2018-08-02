@@ -4,8 +4,14 @@ local ffi = require("ffi")
 -- print each line as:
 -- offset, Hex-16 digits, ASCII
 local function isprintable(c)
-        return c >= 0x20 and c < 0x7f
+    return c >= 0x20 and c < 0x7f
 end
+
+-- ' ' 0x20, '\t' 0x09, '\n' 0x0a, '\v' 0x0b, '\f' 0x0c, '\r' 0x0d
+local function isspace(c)
+	return c == 0x20 or (c >= 0x09 and c<=0x0d)
+end
+
 
 --[[
     Pass in a config that looks like this:
@@ -78,5 +84,7 @@ end
 end
 
 return {
+    isprintable = isprintable;
+    isspace = isspace;
     printHex = printHex;
 }

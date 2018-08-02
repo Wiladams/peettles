@@ -53,6 +53,18 @@ function peparser.fromData(self, data, size)
     return obj:parse(ms)
 end
 
+--[[
+    PE\0\0 - PE header
+    NE\0\0 - 16-bit Windows New Executable
+    LE\0\0 - Windows 3.x virtual device driver (VxD)
+    LX\0\0 - OS/2 2.0
+]]
+local function IsPEFormatImageFile(sig)
+    return sig[0] == string.byte('P') and
+        sig[1] == string.byte('E') and
+        sig[2] == 0 and
+        sig[3] == 0
+end
 
 function peparser.parse(self, ms)
     self.SourceStream = ms;
@@ -72,6 +84,16 @@ function peparser.parse(self, ms)
     -- anything else is an error
 
     ms:seek(self.DOS.DOSHeader.e_lfanew)
+    
+    -- We expect to see 'PE' as an indicator that what is
+    -- to follow is in fact a PE file.  If not, we quit early
+    local ntheadertype = ms:readBytes(4);
+    if not IsPEFormatImageFile(ntheadertype) then
+        return false, "not PE Format Image File"
+    end
+
+    self.Signature = ntheadertype;
+
     self.COFF, err = parse_COFF(ms);
 
 

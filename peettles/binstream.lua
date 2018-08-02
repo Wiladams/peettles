@@ -63,8 +63,7 @@ function binstream.remaining(self)
 end
 
 function binstream.EOF(self)
-    local remainder =  self:remaining()
-    return remainder < 1
+    return self:remaining() < 1
 end
 
  -- move to a particular position, in bytes
@@ -97,12 +96,9 @@ function binstream.skip(self, offset)
 end
 
 
-
---[[
 function binstream.skipToEven(self)
     self:skip(self.cursor % 2);
 end
---]]
 
 -- get 8 bits, and don't advance the cursor
 function binstream.peek8(self)
@@ -178,6 +174,7 @@ function binstream.readBytes(self, n, bytes)
     return bytes, nActual;
 end
 
+--[[
 -- Read a null terminated ASCIIZ string
 -- do not read more than 'n' bytes
 -- advance the cursor by actual bytes read
@@ -194,7 +191,7 @@ function binstream.readASCIIZ(self, n)
     end
     return ffi.string(bytes)
 end
-
+--]]
 
 function binstream.readString(self, n)
     local str = nil;

@@ -55,6 +55,7 @@ local function printDOSInfo(pecoff)
 	print("]=];");
 	print("    };")
 	-- print the stub in base64
+	print(string.format("   Signature ='%c%c';", pecoff.Signature[0], pecoff.Signature[1]))
 
 	print("  };")
 end
@@ -63,7 +64,6 @@ local function printCOFF(reader)
 	local info = reader.COFF;
 
 	print("  COFF  = {")
-	print(string.format("               Signature ='%c%c';", info.Signature[0], info.Signature[1]))
     print(string.format("                 Machine = 0x%X; ", info.Machine));      -- peenums.MachineType[info.Machine]);
 	print(string.format("        NumberOfSections = %d;", info.NumberOfSections));
 	print(string.format("           TimeDateStamp = 0x%X;", info.TimeDateStamp));
