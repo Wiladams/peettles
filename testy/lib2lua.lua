@@ -53,7 +53,7 @@ end
 local function printCOFF(info)
 	print("    COFF  = {")
     print(string.format("                 Machine = 0x%X; ", info.Machine));      -- peenums.MachineType[info.Machine]);
-	print(string.format("        NumberOfSections = %d;", info.NumberOfSections));
+	print(string.format("        NumberOfSections = 0x%04X;", info.NumberOfSections));
 	print(string.format("           TimeDateStamp = 0x%X;", info.TimeDateStamp));
 	print(string.format("    PointerToSymbolTable = 0x%X;", info.PointerToSymbolTable));
 	print(string.format("         NumberOfSymbols = %d;", info.NumberOfSymbols));
@@ -123,6 +123,13 @@ local function printSecondLinkMember(member)
     print("  };")
 end
 
+local function printLongNameTable(LongNames)
+    print("  LongNames = {")
+    for _, name in ipairs(LongNames.Symbols) do
+        print(string.format("    '%s';", name))
+    end
+    print("  };")
+end
 
 local function main()
 	local mfile = mmap(filename);
@@ -139,6 +146,7 @@ local function main()
 	print(string.format("local lib = { "))
     print(string.format("  Signature = '%s';", info.Signature))
 ---[[
+    printLongNameTable(info.LongNames)
     printFirstLinkMember(info.FirstLinkMember)
     printSecondLinkMember(info.SecondLinkMember)
     for idx, member in ipairs(info.Members) do

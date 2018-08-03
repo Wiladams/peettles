@@ -195,10 +195,13 @@ end
 
 function binstream.readString(self, n)
     local str = nil;
+
     if not n then
+        -- read to null terminator
         str = ffi.string(self.data+self.cursor)
         self.cursor = self.cursor + #str + 1;
     else
+        -- read a specific number of bytes, turn into Lua string
         str = ffi.string(self.data+self.cursor, n)
         self.cursor = self.cursor + n;
     end

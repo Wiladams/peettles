@@ -176,6 +176,34 @@ local function readSecondLinkMember(bs, res)
     return res;
 end
 
+
+local function readLongNameTable(bs, res)
+    res = res or {}
+
+    bs.bigend = false;
+    bs:skipToEven();
+
+    local member, err = readArchiveMemberHeader(bs, res);
+    
+    -- The symbols follow immediately
+    print("SIZE: ", member.Size)
+    local ns = bs:range(member.Size);
+
+    res.Symbols = {}
+    while true do
+        if ns:EOF() then
+            break;
+        end
+
+        local longName, err = ns:readString();
+
+        print("LONG NAME: ", longName)
+        table.insert(res.Symbols, longName)
+    end
+
+    return res;
+end
+
 local function readImportHeader(bs, res)
     res = res or {}
     res.Sig1 = bs:readUInt16();
@@ -215,6 +243,7 @@ function parser.parse(self, bs)
     -- Read Second Link Member
     self.FirstLinkMember = readFirstLinkMember(bs);
     self.SecondLinkMember = readSecondLinkMember(bs);
+    self.LongNames = readLongNameTable(bs);
 
     bs.bigend = false;
     for counter=1, self.SecondLinkMember.NumberOfMembers do
