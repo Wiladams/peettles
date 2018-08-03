@@ -81,7 +81,7 @@ function readSectionHeaders(ms, res, nsections)
         -- Lua doesn't really care, I suppose the right thing to do is
         -- use all 8 bytes, and only create a 'pretty' name for display purposes
 		sec.Name = stringFromBuff(sec.Name, 8)
-
+--print("Section: ", sec.Name)
 		res[sec.Name] = sec
 	end
 
@@ -318,6 +318,14 @@ function readHeader(ms, res)
     res.SizeOfOptionalHeader = ms:readWORD();
     res.Characteristics = ms:readWORD();
 
+--[[
+    print("== COFF ==")
+    print("Machine:", string.format("0x%x", res.Machine))
+    print("nSections: ", res.NumberOfSections)
+    print("nSymbols: ", res.NumberOfSymbols)
+    print("SizeOfOptionalHeader: ", res.SizeOfOptionalHeader)
+--]]
+
     return res;
 end
 
@@ -327,17 +335,9 @@ local function parse_COFF(ms, res)
 
     local hdr, err = readHeader(ms, res);
 
-    print("COFF, sizeOfOptionalHeader: ", res.SizeOfOptionalHeader)
-    if res.SizeOfOptionalHeader < 1 then
-        return res;
+    if res.SizeOfOptionalHeader > 0  then
+        res.PEHeader, err = readPEOptionalHeader(ms);
     end
-
-
-    res.PEHeader, err = readPEOptionalHeader(ms);
-    if not res.PEHeader then
-        return false, err;
-    end
-
 
     -- Now offset should be positioned at the section table
     res.Sections = readSectionHeaders(ms, nil, res.NumberOfSections)
@@ -345,7 +345,9 @@ local function parse_COFF(ms, res)
 
     -- Now that we have section information, we should
     -- be able to read detailed directory information
-    res.Directory = readDirectoryData(res, ms)
+    if res.PEHeader then
+        res.Directory = readDirectoryData(res, ms)
+    end
 
     return res;
 end

@@ -30,8 +30,28 @@ local function printData(data, size)
     }
 end
 
+local function printSectionHeaders(sections)
+
+	print("  Sections = {")
+	for name,section in pairs(sections) do
+		print(string.format("    ['%s'] = {", name))
+		print(string.format("             VirtualSize = 0x%08X;", section.VirtualSize))
+		print(string.format("          VirtualAddress = 0x%08X;", section.VirtualAddress))
+		print(string.format("           SizeOfRawData = 0x%08X;", section.SizeOfRawData))
+		print(string.format("        PointerToRawData = 0x%08X;", section.PointerToRawData))
+		print(string.format("    PointerToRelocations = 0x%08X;", section.PointerToRelocations))
+		print(string.format("    PointerToLinenumbers = 0x%08X;", section.PointerToLinenumbers))
+		print(string.format("     NumberOfRelocations = %d;", section.NumberOfRelocations))
+		print(string.format("     NumberOfLineNumbers = %d;", section.NumberOfLinenumbers))
+		print(string.format("         Characteristics = 0x%08X;", section.Characteristics))
+		print(  "    };")
+	end
+	print("  };")
+end
+
+
 local function printCOFF(info)
-	print("  COFF  = {")
+	print("    COFF  = {")
     print(string.format("                 Machine = 0x%X; ", info.Machine));      -- peenums.MachineType[info.Machine]);
 	print(string.format("        NumberOfSections = %d;", info.NumberOfSections));
 	print(string.format("           TimeDateStamp = 0x%X;", info.TimeDateStamp));
@@ -39,7 +59,9 @@ local function printCOFF(info)
 	print(string.format("         NumberOfSymbols = %d;", info.NumberOfSymbols));
 	print(string.format("    SizeOfOptionalHeader = %d;", info.SizeOfOptionalHeader));
 	print(string.format("         Characteristics = 0x%04X;", info.Characteristics));  -- enum.bitValues(peenums.Characteristics, info.Characteristics, 32)));
-	print("  };")
+
+    printSectionHeaders(info.Sections)
+    print("    };")
 end
 
     -- [16] file identifier
@@ -49,7 +71,7 @@ end
     -- [8] file mode
     -- [10] file size in bytes
     -- [2]  end char
-    -- [4]  version
+
 local function printArchiveMember(member)
     print(string.format("  ['%s'] = {", member.Identifier))
     print(string.format("    HeaderOffset = 0x%x", member.HeaderOffset))
@@ -57,11 +79,50 @@ local function printArchiveMember(member)
     print(string.format("    OwnerID = '%s'", member.OwnerID));
     print(string.format("    GroupID = '%s'", member.OwnerID));
     print(string.format("    Size = %s", string.format("0x%x",member.Size)));
-    print("    Data = [=[")
-    --printData(member.Data, member.Size)
-    print("    ]=];")
+    printCOFF(member)
     print(string.format("  };"))
 end
+
+local function printFirstLinkMember(member)
+    --printArchiveMember(member);
+    print(string.format("  FirstLinkMember = {"));
+    print(string.format("       Identifier = '%s';", member.Identifier))
+    print(string.format("     HeaderOffset = 0x%x", member.HeaderOffset))
+    print(string.format("         DateTime = '%s'", member.DateTime))
+    print(string.format("          OwnerID = '%s'", member.OwnerID));
+    print(string.format("          GroupID = '%s'", member.OwnerID));
+    print(string.format("             Size = %s", string.format("0x%x",member.Size)));
+    print(string.format("  NumberOfSymbols = %d;", member.NumberOfSymbols))
+    print(string.format("          Symbols = {"))
+    for idx=1, member.NumberOfSymbols do
+        print(string.format("            {0x%4x, '%s'};", member.Offsets[idx], member.Symbols[idx]))
+    end
+    print("  };")
+end
+
+local function printSecondLinkMember(member)
+    --printArchiveMember(member);
+    print(string.format("  SecondLinkMember = {"));
+    print(string.format("        Identifier = '%s';", member.Identifier))
+    print(string.format("      HeaderOffset = 0x%x", member.HeaderOffset))
+    print(string.format("          DateTime = '%s'", member.DateTime))
+    print(string.format("           OwnerID = '%s'", member.OwnerID));
+    print(string.format("           GroupID = '%s'", member.OwnerID));
+    print(string.format("              Size = %s", string.format("0x%x",member.Size)));
+    print(string.format("   NumberOfMembers = %d;", member.NumberOfMembers))
+    print(string.format("    MemberOffsets = {"))
+    for counter=1, member.NumberOfMembers do 
+        print(string.format("      0x%4x;", member.MemberOffsets[counter]))
+    end
+    print("    };")
+    print(string.format("  Symbols = {"))
+    for idx=1, member.NumberOfSymbols do
+        print(string.format("    {index= 0x%04x, offset = 0x%04X, '%s'};", member.Indices[idx], member.MemberOffsets[member.Indices[idx]], member.Symbols[idx]))
+    end
+    print("    };")
+    print("  };")
+end
+
 
 local function main()
 	local mfile = mmap(filename);
@@ -77,9 +138,13 @@ local function main()
 
 	print(string.format("local lib = { "))
     print(string.format("  Signature = '%s';", info.Signature))
+---[[
+    printFirstLinkMember(info.FirstLinkMember)
+    printSecondLinkMember(info.SecondLinkMember)
     for idx, member in ipairs(info.Members) do
         printArchiveMember(member)
     end
+--]]
 	print("};")
 end
 

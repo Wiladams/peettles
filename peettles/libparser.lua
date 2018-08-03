@@ -68,8 +68,7 @@ end
 
 -- This will need to deal with both null
 -- terminated, as well as space appended strings
--- first traverse the buffer backwards looking for nulls
--- then remove whitespace
+-- traverse the buffer backwards looking for nulls or whitespace
 local function readTrimmedString(bs, size)
     local truelen = size
     local bytes = bs:readBytes(size)
@@ -92,18 +91,20 @@ local function readArchiveMemberHeader(bs, res)
     -- for all archive members
     res.HeaderOffset = bs:tell();
     res.Identifier = readTrimmedString(bs, 16);
-    res.DateTime = readTrimmedString(bs, 12); -- trim(ffi.string(bs:readBytes(12),12));
-    res.OwnerID = readTrimmedString(bs, 6); -- ffi.string(bs:readBytes(6),6);
-    res.GroupID = readTrimmedString(bs, 6); -- ffi.string(bs:readBytes(6),6);
-    res.Mode = readTrimmedString(bs, 8);  -- ffi.string(bs:readBytes(8),8);
+    res.DateTime = readTrimmedString(bs, 12); 
+    res.OwnerID = readTrimmedString(bs, 6); 
+    res.GroupID = readTrimmedString(bs, 6);
+    res.Mode = readTrimmedString(bs, 8);
     res.Size = tonumber(readTrimmedString(bs, 10));
---print("      Size: ", res.Size)
     res.EndChar = bs:readBytes(2);
 
---print("Name: ", res.Name)
+--[[
+print("Name: ", res.Identifier)
+print("  Header Offset: ", res.HeaderOffset)
 --print("  DateTime: ", res.DateTime)
-    -- If the archive member name ~= '/' or '//' or something else
-    -- then it's probably a COFF section
+print("  Size: ", res.Size)
+print(string.format("  End: 0x%x,0x%x", res.EndChar[0], res.EndChar[1]))
+--]]
 
     return res;
 end
@@ -115,42 +116,88 @@ end
 ]]
 local function readFirstLinkMember(bs, res)
     res = res or {}
+    
     bs:skipToEven();
-    local member, err = readArchiveMember(bs, res);
+    local member, err = readArchiveMemberHeader(bs, res);
+
+    -- create binstream that's bigendian
+    bs.bigend = true;
+    res.NumberOfSymbols = bs:readUInt32();
+    res.Offsets = {};
+    res.Symbols = {};
+    for counter=1,res.NumberOfSymbols do
+        local offset = bs:readUInt32();
+        table.insert(res.Offsets, offset)
+    end
+
+    for counter=1, res.NumberOfSymbols do
+        table.insert(res.Symbols, bs:readString())
+    end
 
     return res;
 end
 
+--[[
+    0   4       Number Of Members in the archive
+    4   m*4     Array of Offsets to member headers
+    *   4       Number of symbols
+    *   n*2     Indices
+    *   *       String Table, Array of null terminated strings
+
+    Unlike FirstLinkMember, the integer values in the SecondLinkMember
+    are in little-endian format, NOT bigendian
+]]
 local function readSecondLinkMember(bs, res)
     res = res or {}
     bs:skipToEven();
-    local member, err = readArchiveMember(bs, res);
+    local member, err = readArchiveMemberHeader(bs, res);
+
+
+    res.MemberOffsets = {}
+    res.Indices = {}
+    res.Symbols = {}
+    bs.bigend = false;
+    res.NumberOfMembers = bs:readUInt32();
+--print("SL: NumberOfMembers: ", string.format("0x%08X", res.NumberOfMembers))
+
+    for counter=1, res.NumberOfMembers do 
+        table.insert(res.MemberOffsets, bs:readUInt32())
+    end
+
+    res.NumberOfSymbols = bs:readUInt32();
+    for counter=1, res.NumberOfSymbols do 
+        table.insert(res.Indices, bs:readUInt16())
+    end
+
+    for counter=1, res.NumberOfSymbols do
+        table.insert(res.Symbols, bs:readString())
+    end
 
     return res;
 end
 
+local function readImportHeader(bs, res)
+    res = res or {}
+    res.Sig1 = bs:readUInt16();
+    res.Sig2 = bs:readUInt16();
+    res.Version = bs:readUInt16();
+    res.Machine = bs:readUInt16();
+    res.TimeDateStamp = bs:readUInt32();
+    res.SizeOfData = bs:readUInt32();
+    res.OrdHint = bs:readUInt16();
+    res.NameType = bs:readUInt16();
 
+--[[
+print("= ImportHeader =")
+print(string.format("  Sig1: %04x", res.Sig1))
+print(string.format("  Sig2: %04X", res.Sig2))
+print(string.format("Version: ", res.Version))
+print(string.format("Machine: 0x%04X", res.Machine))
+--]]
 
-    -- [8]  file signature
-    -- PACKAGE
-    -- [16] file identifier
-    -- [12] file modification timestamp
-    -- [6] owner ID
-    -- [6] group ID
-    -- [8] file mode
-    -- [10] file size in bytes
-    -- [2]  end char
-    -- [4]  version
-    -- CONTROL
-    -- [16] file identifier
-    -- [12] file modification timestamp
-    -- [6] owner ID
-    -- [6] group ID
-    -- [8] file mode
-    -- [10] file size in bytes
-    -- [2]  end char
-    -- [file size] DATA
-    -- DATA
+    return res;
+end
+
 
 function parser.parse(self, bs)
     local libsig, err = readLibrarySignature(bs, self)
@@ -166,17 +213,24 @@ function parser.parse(self, bs)
     --res.Data = bs:readBytes(res.Size);
     -- Read First Link Member
     -- Read Second Link Member
-    self.Members.FirstLinkMember = readFirstLinkMember(bs);
-    self.Members.SecondLinkMember = readSecondLinkMember(bs);
+    self.FirstLinkMember = readFirstLinkMember(bs);
+    self.SecondLinkMember = readSecondLinkMember(bs);
 
-    while true do
+    bs.bigend = false;
+    for counter=1, self.SecondLinkMember.NumberOfMembers do
         -- All members start on a two byte boundary, so 
         -- We make sure we're properly aligned before reading
-        bs:skipToEven();
-        local member, err = readArchiveMember(bs);
+        bs:seek(self.SecondLinkMember.MemberOffsets[counter])
+        local member, err = readArchiveMemberHeader(bs);
         if not member then
             break;
         end
+
+        -- It should be a COFF section, so read that next
+        --local iheader = readImportHeader(bs)
+
+        parse_COFF(bs, member)
+        
         table.insert(self.Members, member);
     end
 
