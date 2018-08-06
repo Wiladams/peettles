@@ -57,14 +57,27 @@ end
 local function printSymbolTable(SymbolTable)
     for idx, res in ipairs(SymbolTable) do
         print("Symbol = {")
+        print(string.format("  SymbolIndex = %d;", res.SymbolIndex));
         print(string.format("  Name = '%s';", res.Name));
         print(string.format("  Value = 0x%X;", res.Value));
         print(string.format("  SectionNumber = %d;", res.SectionNumber));
-        print(string.format("  Type = 0x%X", res.Type));
+        print(string.format("  Base Type = %d;", res.BaseType));
+        print(string.format("  ComplexType = %d;", res.ComplexType));
+        --print(string.format("  Type = 0x%X", res.Type));
         print(string.format("  StorageClass = %d;",res.StorageClass));
         print(string.format("  NumberOfAuxSymbols = %d;", res.NumberOfAuxSymbols));
         print("};")
     end
+end
+
+local function printStringTable(StringTable)
+    if not StringTable then return false; end
+    
+    print("  StringTable = {")
+    for idx, str in ipairs(StringTable) do
+        print(string.format("    '%s';", str))
+    end
+    print("  };")
 end
 
 
@@ -80,6 +93,7 @@ local function printCOFF(info)
 
     printSectionHeaders(info.Sections);
     printSymbolTable(info.SymbolTable);
+    printStringTable(info.StringTable);
     print("    };")
 end
 

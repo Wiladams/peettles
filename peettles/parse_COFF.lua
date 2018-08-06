@@ -1,6 +1,7 @@
 local ffi = require("ffi")
 local bit = require("bit")
 local band = bit.band;
+local lshift = bit.lshift;
 
 local binstream = require("peettles.binstream")
 local peenums = require("peettles.penums")
@@ -303,25 +304,91 @@ end
     Do the work of actually parsing the interesting
     data in the file.
 ]]
-local function readSymbolTable(ms, nSims, res)
+local SizeOfSymbol = 18;
+
+-- nSims includes number of auxilary symbols
+local function readSymbolTable(ms, nSims, strTableSize, res)
     res = res or {}
-print("NSIMS: ", nSims)
-    for counter = 1, nSims do
+    local actualSims = 0;
+    local symStart = ms:tell();
+    local strTableStart = symStart + nSims * SizeOfSymbol;
+    local ns = ms:range(strTableSize, strTableStart)
+
+--print("NSIMS: ", nSims)
+    local counter = 0;
+    while counter < nSims do
+        counter = counter + 1;
         local sym = {
+            SymbolIndex = counter;
             Name = ms:readBytes(8);
             Value = ms:readUInt32();
             SectionNumber = ms:readInt16();
-            Type = ms:readUInt16();
+            BaseType = ms:readOctet();
+            ComplexType = ms:readOctet();
+            --Type = ms:readUInt16();
             StorageClass = ms:readOctet();
             NumberOfAuxSymbols = ms:readUInt8();
         }
-        sym.Name = stringFromBuff(sym.Name, 8);
+
+        -- if first 4 bytes of string are '0'
+        -- then it is a string lookup, otherwise
+        -- it's a name <= 8 bytes
+        if sym.Name[0] ~= 0 then
+            sym.Name = stringFromBuff(sym.Name, 8);
+        else
+            -- calculate offset within string table
+            local idx = sym.Name[4]+
+                lshift(sym.Name[5],8)+
+                lshift(sym.Name[6], 16)+
+                lshift(sym.Name[7],24);
+            --print("IDX: ", idx)
+            ns:seek(idx)
+            sym.Name = ns:readString();
+            -- lookup name in string stable
+        end
+
+        if sym.NumberOfAuxSymbols > 0 then
+            sym.Aux = {}
+            for auxCnt = 1, sym.NumberOfAuxSymbols do
+                counter = counter + 1;
+                ms:skip(SizeOfSymbol);
+                table.insert(sym.Aux, {AuxName = "AUX"});
+            end
+        end
         table.insert(res, sym);
     end
 
     return res;
 end
 
+local function readStringTable(ms, res)
+    res = res or {}
+
+    -- first read a size
+    local sizeOfTable = ms:readUInt32();
+    if sizeOfTable <= 4 then
+        return false;
+    end
+
+    --print("SIZE OF TABLE: ", sizeOfTable)
+    local ns, err = ms:range(sizeOfTable-4)
+    if not ns then
+        print("ERROR: ", err, sizeOfTable, ms.size, ms.cursor)
+        return false;
+    end
+
+    while true do
+        local str, err = ns:readString();
+        --print("RST: ", str, err)
+        if not str then
+            break;
+        end
+        
+        table.insert(res, str);
+    end
+
+    return res, sizeOfTable-4;
+end
 
 -- Windows loader used to limit to 96
 -- but now (as of Windows 10), it can be the full 
@@ -350,6 +417,7 @@ local function readHeader(ms, res)
 end
 
 
+
 local function parse_COFF(ms, res)
     res = res or {}
 
@@ -364,11 +432,17 @@ local function parse_COFF(ms, res)
     res.Sections = readSectionHeaders(ms, nil, res.NumberOfSections)
     setmetatable(res.Sections, section_mt)
 
+    -- Either read the string table before the symbol
+    -- table, or do fixups afterwards
+    ms:seek(fileStart + res.PointerToSymbolTable + SizeOfSymbol*hdr.NumberOfSymbols)
+    res.StringTable, strTableSize = readStringTable(ms)
+
     -- Read symbol table
     ms:seek(fileStart + res.PointerToSymbolTable)
-    res.SymbolTable = readSymbolTable(ms, hdr.NumberOfSymbols)
+--    local strTableOffset = fileStart + res.PointerToSymbolTable + SizeOfSymbol*hdr.NumberOfSymbols;
+    res.SymbolTable = readSymbolTable(ms, hdr.NumberOfSymbols, strTableSize);
 
-    --print("TELL: PTR: ", ms:tell(), res.PointerToSymbolTable)
+
 --[[
     -- Now that we have section information, we should
     -- be able to read detailed directory information

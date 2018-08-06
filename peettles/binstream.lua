@@ -196,9 +196,16 @@ end
 function binstream.readString(self, n)
     local str = nil;
 
+    --print("BS: ", self:remaining())
+    if self:EOF() then
+        return false, "EOF"
+    end
+
     if not n then
         -- read to null terminator
+
         str = ffi.string(self.data+self.cursor)
+        --print("binstream, STR: ", str)
         self.cursor = self.cursor + #str + 1;
     else
         -- read a specific number of bytes, turn into Lua string
@@ -292,8 +299,16 @@ end
 function binstream.range(self, size, pos)
     pos = pos or self.cursor;
 
-    if ((pos < 0) or (size < 0) or (pos > self.size) or (size > (self.size - pos))) then 
-        return false;
+    if pos < 0 or size < 0 then
+        return false, "pos or size < 0"
+    end
+
+    if pos > self.size then
+        return false, "pos > self.size"
+    end
+
+    if ((size > (self.size - pos))) then 
+        return false, "size is greater than remainder";
     end
 
     return binstream(self.data+pos, size, 0 , not self.bigend)
