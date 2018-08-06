@@ -80,10 +80,12 @@ function readSectionHeaders(ms, res, nsections)
         -- They could be UNICODE, or any 8 consecutive bytes.  Since
         -- Lua doesn't really care, I suppose the right thing to do is
         -- use all 8 bytes, and only create a 'pretty' name for display purposes
+
 		sec.Name = stringFromBuff(sec.Name, 8)
 --print("Section: ", sec.Name)
-		res[sec.Name] = sec
-	end
+		--res[sec.Name] = sec
+        table.insert(res, sec)
+    end
 
 	return res
 end
@@ -301,12 +303,30 @@ end
     Do the work of actually parsing the interesting
     data in the file.
 ]]
+local function readSymbolTable(ms, nSims, res)
+    res = res or {}
+print("NSIMS: ", nSims)
+    for counter = 1, nSims do
+        local sym = {
+            Name = ms:readBytes(8);
+            Value = ms:readUInt32();
+            SectionNumber = ms:readInt16();
+            Type = ms:readUInt16();
+            StorageClass = ms:readOctet();
+            NumberOfAuxSymbols = ms:readUInt8();
+        }
+        sym.Name = stringFromBuff(sym.Name, 8);
+        table.insert(res, sym);
+    end
+
+    return res;
+end
 
 
 -- Windows loader used to limit to 96
 -- but now (as of Windows 10), it can be the full 
 -- range of 16-bit number (65535)
-function readHeader(ms, res)
+local function readHeader(ms, res)
 
     res = res or {}
 
@@ -333,6 +353,7 @@ end
 local function parse_COFF(ms, res)
     res = res or {}
 
+    local fileStart = ms:tell();
     local hdr, err = readHeader(ms, res);
 
     if res.SizeOfOptionalHeader > 0  then
@@ -343,11 +364,18 @@ local function parse_COFF(ms, res)
     res.Sections = readSectionHeaders(ms, nil, res.NumberOfSections)
     setmetatable(res.Sections, section_mt)
 
+    -- Read symbol table
+    ms:seek(fileStart + res.PointerToSymbolTable)
+    res.SymbolTable = readSymbolTable(ms, hdr.NumberOfSymbols)
+
+    --print("TELL: PTR: ", ms:tell(), res.PointerToSymbolTable)
+--[[
     -- Now that we have section information, we should
     -- be able to read detailed directory information
     if res.PEHeader then
         res.Directory = readDirectoryData(res, ms)
     end
+--]]
 
     return res;
 end
