@@ -186,7 +186,7 @@ local function readLongNameTable(bs, res)
     local member, err = readArchiveMemberHeader(bs, res);
     
     -- The symbols follow immediately
-    print("SIZE: ", member.Size)
+    --print("SIZE: ", member.Size)
     local ns = bs:range(member.Size);
 
     res.Symbols = {}
@@ -197,31 +197,9 @@ local function readLongNameTable(bs, res)
 
         local longName, err = ns:readString();
 
-        print("LONG NAME: ", longName)
+        --print("LONG NAME: ", longName)
         table.insert(res.Symbols, longName)
     end
-
-    return res;
-end
-
-local function readImportHeader(bs, res)
-    res = res or {}
-    res.Sig1 = bs:readUInt16();
-    res.Sig2 = bs:readUInt16();
-    res.Version = bs:readUInt16();
-    res.Machine = bs:readUInt16();
-    res.TimeDateStamp = bs:readUInt32();
-    res.SizeOfData = bs:readUInt32();
-    res.OrdHint = bs:readUInt16();
-    res.NameType = bs:readUInt16();
-
---[[
-print("= ImportHeader =")
-print(string.format("  Sig1: %04x", res.Sig1))
-print(string.format("  Sig2: %04X", res.Sig2))
-print(string.format("Version: ", res.Version))
-print(string.format("Machine: 0x%04X", res.Machine))
---]]
 
     return res;
 end

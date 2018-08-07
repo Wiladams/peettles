@@ -312,7 +312,11 @@ local function readSymbolTable(ms, nSims, strTableSize, res)
     local actualSims = 0;
     local symStart = ms:tell();
     local strTableStart = symStart + nSims * SizeOfSymbol;
-    local ns = ms:range(strTableSize, strTableStart)
+    
+    local ns = false;
+    if strTableSize then
+        ns = ms:range(strTableSize, strTableStart)
+    end
 
 --print("NSIMS: ", nSims)
     local counter = 0;
@@ -367,14 +371,14 @@ local function readStringTable(ms, res)
     -- first read a size
     local sizeOfTable = ms:readUInt32();
     if sizeOfTable <= 4 then
-        return false;
+        return false, "No Strings in Table";
     end
 
     --print("SIZE OF TABLE: ", sizeOfTable)
     local ns, err = ms:range(sizeOfTable-4)
     if not ns then
-        print("ERROR: ", err, sizeOfTable, ms.size, ms.cursor)
-        return false;
+        --print("ERROR: ", err, sizeOfTable, ms.size, ms.cursor)
+        return false, err;
     end
 
     while true do
@@ -390,6 +394,28 @@ local function readStringTable(ms, res)
     return res, sizeOfTable-4;
 end
 
+local function readImportHeader(bs, res)
+    res = res or {}
+    res.Sig1 = bs:readUInt16();
+    res.Sig2 = bs:readUInt16();
+    res.Version = bs:readUInt16();
+    res.Machine = bs:readUInt16();
+    res.TimeDateStamp = bs:readUInt32();
+    res.SizeOfData = bs:readUInt32();
+    res.OrdHint = bs:readUInt16();
+    res.NameType = bs:readUInt16();
+
+--[[
+print("= ImportHeader =")
+print(string.format("  Sig1: %04x", res.Sig1))
+print(string.format("  Sig2: %04X", res.Sig2))
+print(string.format("Version: ", res.Version))
+print(string.format("Machine: 0x%04X", res.Machine))
+--]]
+
+    return res;
+end
+
 -- Windows loader used to limit to 96
 -- but now (as of Windows 10), it can be the full 
 -- range of 16-bit number (65535)
@@ -399,6 +425,8 @@ local function readHeader(ms, res)
 
     res.Machine = ms:readWORD();
     res.NumberOfSections = ms:readWORD();     
+--print("MACHINE: ", string.format("0x%x", res.Machine))
+--print("SECTIONS: ", res.NumberOfSections)
     res.TimeDateStamp = ms:readDWORD();
     res.PointerToSymbolTable = ms:readDWORD();
     res.NumberOfSymbols = ms:readDWORD();
@@ -436,8 +464,14 @@ local function parse_COFF(ms, res)
     -- table, or do fixups afterwards
     ms:seek(fileStart + res.PointerToSymbolTable + SizeOfSymbol*hdr.NumberOfSymbols)
     res.StringTable, strTableSize = readStringTable(ms)
+    --print("  STRING TABLE SIZE: ", strTableSize)
+    if not res.StringTable then
+        strTableSize = false;
+    end
 
     -- Read symbol table
+    --print("POINTER TO SYMBOLS: ", string.format("0x%04X", res.PointerToSymbolTable))
+    --print("  NUMBER OF SYMBOLS: ", hdr.NumberOfSymbols)
     ms:seek(fileStart + res.PointerToSymbolTable)
 --    local strTableOffset = fileStart + res.PointerToSymbolTable + SizeOfSymbol*hdr.NumberOfSymbols;
     res.SymbolTable = readSymbolTable(ms, hdr.NumberOfSymbols, strTableSize);
