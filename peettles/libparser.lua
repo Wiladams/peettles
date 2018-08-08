@@ -98,9 +98,9 @@ local function readArchiveMemberHeader(bs, res)
     res.Size = tonumber(readTrimmedString(bs, 10));
     res.EndChar = bs:readBytes(2);
 
---[[
+---[[
 print("Name: ", res.Identifier)
-print("  Header Offset: ", res.HeaderOffset)
+print("  Header Offset: ", string.format("0x%x",res.HeaderOffset))
 --print("  DateTime: ", res.DateTime)
 print("  Size: ", res.Size)
 print(string.format("  End: 0x%x,0x%x", res.EndChar[0], res.EndChar[1]))
@@ -158,19 +158,28 @@ local function readSecondLinkMember(bs, res)
     res.Symbols = {}
     bs.bigend = false;
     res.NumberOfMembers = bs:readUInt32();
---print("SL: NumberOfMembers: ", string.format("0x%08X", res.NumberOfMembers))
+
+--print("SECOND LINK MEMBER")
+--print("  Number Of Members: ", res.NumberOfMembers)
+
 
     for counter=1, res.NumberOfMembers do 
         table.insert(res.MemberOffsets, bs:readUInt32())
     end
 
     res.NumberOfSymbols = bs:readUInt32();
+--print("  Number of Symbols: ", res.NumberOfSymbols)
+
     for counter=1, res.NumberOfSymbols do 
-        table.insert(res.Indices, bs:readUInt16())
+        local index = bs:readUInt16()
+--print("  Symbol Index: ", index)
+        table.insert(res.Indices, index)
     end
 
     for counter=1, res.NumberOfSymbols do
-        table.insert(res.Symbols, bs:readString())
+        local identifier = bs:readString();
+--print("  Identifier: ", identifier)
+        table.insert(res.Symbols, identifier)
     end
 
     return res;
@@ -181,13 +190,13 @@ local function readLongNameTable(bs, res)
     res = res or {}
 
     bs.bigend = false;
-    bs:skipToEven();
+    --bs:skipToEven();
 
-    local member, err = readArchiveMemberHeader(bs, res);
+    --local member, err = readArchiveMemberHeader(bs, res);
     
     -- The symbols follow immediately
     --print("SIZE: ", member.Size)
-    local ns = bs:range(member.Size);
+    local ns = bs:range(res.Size);
 
     res.Symbols = {}
     while true do
@@ -213,18 +222,25 @@ function parser.parse(self, bs)
 
     self.Members = {}
 
-        -- At this point, need to decide which of the 'ar' archive formats
-    -- we're dealing with, Sys V/FreeBSD, or BSD
-    -- there may be a long name right after the header
-    --res.Data = bs:readBytes(res.Size);
     -- Read First Link Member
     -- Read Second Link Member
     self.FirstLinkMember = readFirstLinkMember(bs);
     self.SecondLinkMember = readSecondLinkMember(bs);
-    self.LongNames = readLongNameTable(bs);
 
+
+    -- read another header
+    -- if the identifier is '//' then it's a long name table
+    bs:skipToEven();
+    local member, err = readArchiveMemberHeader(bs);
+    local startIdx = 1;
+    if member.Identifier == "//" then
+        self.LongNames = readLongNameTable(bs, member);
+        startIdx  = 1;
+    end
+
+    -- make sure we're back to littleendian
     bs.bigend = false;
-    for counter=1, self.SecondLinkMember.NumberOfMembers do
+    for counter=startIdx, self.SecondLinkMember.NumberOfMembers do
         -- All members start on a two byte boundary, so 
         -- We make sure we're properly aligned before reading
         bs:seek(self.SecondLinkMember.MemberOffsets[counter])
@@ -234,8 +250,6 @@ function parser.parse(self, bs)
         end
 
         -- It should be a COFF section, so read that next
-        --local iheader = readImportHeader(bs)
-
         parse_COFF(bs, member)
         
         table.insert(self.Members, member);

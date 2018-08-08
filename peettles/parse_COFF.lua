@@ -425,8 +425,8 @@ local function readHeader(ms, res)
 
     res.Machine = ms:readWORD();
     res.NumberOfSections = ms:readWORD();     
---print("MACHINE: ", string.format("0x%x", res.Machine))
---print("SECTIONS: ", res.NumberOfSections)
+print("MACHINE: ", string.format("0x%x", res.Machine))
+print("SECTIONS: ", res.NumberOfSections)
     res.TimeDateStamp = ms:readDWORD();
     res.PointerToSymbolTable = ms:readDWORD();
     res.NumberOfSymbols = ms:readDWORD();
@@ -451,6 +451,18 @@ local function parse_COFF(ms, res)
 
     local fileStart = ms:tell();
     local hdr, err = readHeader(ms, res);
+
+    if not hdr then 
+        return false, err
+    end
+
+    if hdr.Machine ==0 and hdr.NumberOfSections == 0xffff then
+        hdr, err = readImportHeader(ms)
+        -- read null terminated import name
+        -- read null termianted dll name
+        return hdr;
+    end
+
 
     if res.SizeOfOptionalHeader > 0  then
         res.PEHeader, err = readPEOptionalHeader(ms);

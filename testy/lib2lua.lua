@@ -52,6 +52,7 @@ end
 
 local function printCOFF(info)
 	print("    COFF  = {")
+if info.Machine ~= 0 then
     print(string.format("                 Machine = 0x%X; ", info.Machine));      -- peenums.MachineType[info.Machine]);
 	print(string.format("        NumberOfSections = 0x%04X;", info.NumberOfSections));
 	print(string.format("           TimeDateStamp = 0x%X;", info.TimeDateStamp));
@@ -61,6 +62,9 @@ local function printCOFF(info)
 	print(string.format("         Characteristics = 0x%04X;", info.Characteristics));  -- enum.bitValues(peenums.Characteristics, info.Characteristics, 32)));
 
     printSectionHeaders(info.Sections)
+else
+    print("IMPORT COFF")
+end
     print("    };")
 end
 
@@ -146,7 +150,10 @@ local function main()
 	print(string.format("local lib = { "))
     print(string.format("  Signature = '%s';", info.Signature))
 ---[[
+    if info.LongNames then
     printLongNameTable(info.LongNames)
+    end
+
     printFirstLinkMember(info.FirstLinkMember)
     printSecondLinkMember(info.SecondLinkMember)
     for idx, member in ipairs(info.Members) do
