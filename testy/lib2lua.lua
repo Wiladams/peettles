@@ -31,6 +31,9 @@ local function printData(data, size)
 end
 
 local function printSectionHeaders(sections)
+    if not sections then
+        return false;
+    end
 
 	print("  Sections = {")
 	for name,section in pairs(sections) do
@@ -49,10 +52,28 @@ local function printSectionHeaders(sections)
 	print("  };")
 end
 
+local function printImportHeader(info)
+    print("    ImportHeader  = {")
+    print(string.format("        Sig1 = 0x%4X", info.Sig1))
+    print(string.format("        Sig1 = 0x%4X", info.Sig2))
+    print(string.format("        Version = 0x%4X", info.Version))
+    print(string.format("        Machine = 0x%4X", info.Machine))
+    print(string.format("        Sig1 = 0x%8X", info.TimeDateStamp))
+    print(string.format("        Sig1 = 0x%8X", info.SizeOfData))
+    print(string.format("        Sig1 = 0x%4X", info.OrdHint))
+    print(string.format("        Sig1 = 0x%4X", info.NameType))
+    print("    };")
+end
 
 local function printCOFF(info)
-	print("    COFF  = {")
-if info.Machine ~= 0 then
+    if info.Sig1 then
+        printImportHeader(info)
+        return
+    end
+
+
+    print("    COFF  = {")
+
     print(string.format("                 Machine = 0x%X; ", info.Machine));      -- peenums.MachineType[info.Machine]);
 	print(string.format("        NumberOfSections = 0x%04X;", info.NumberOfSections));
 	print(string.format("           TimeDateStamp = 0x%X;", info.TimeDateStamp));
@@ -62,9 +83,7 @@ if info.Machine ~= 0 then
 	print(string.format("         Characteristics = 0x%04X;", info.Characteristics));  -- enum.bitValues(peenums.Characteristics, info.Characteristics, 32)));
 
     printSectionHeaders(info.Sections)
-else
-    print("IMPORT COFF")
-end
+
     print("    };")
 end
 

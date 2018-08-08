@@ -98,7 +98,7 @@ local function readArchiveMemberHeader(bs, res)
     res.Size = tonumber(readTrimmedString(bs, 10));
     res.EndChar = bs:readBytes(2);
 
----[[
+--[[
 print("Name: ", res.Identifier)
 print("  Header Offset: ", string.format("0x%x",res.HeaderOffset))
 --print("  DateTime: ", res.DateTime)

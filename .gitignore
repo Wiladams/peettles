@@ -5,3 +5,4 @@ testy/lua51.lib
 testy/lua51.lib.txt
 testy/luajit.lib
 testy/luajit.lib.txt
+testy/kernel32.txt

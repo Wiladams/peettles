@@ -425,8 +425,8 @@ local function readHeader(ms, res)
 
     res.Machine = ms:readWORD();
     res.NumberOfSections = ms:readWORD();     
-print("MACHINE: ", string.format("0x%x", res.Machine))
-print("SECTIONS: ", res.NumberOfSections)
+--print("MACHINE: ", string.format("0x%x", res.Machine))
+--print("SECTIONS: ", res.NumberOfSections)
     res.TimeDateStamp = ms:readDWORD();
     res.PointerToSymbolTable = ms:readDWORD();
     res.NumberOfSymbols = ms:readDWORD();
