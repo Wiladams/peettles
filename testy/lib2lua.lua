@@ -54,21 +54,24 @@ end
 
 local function printImportHeader(info)
     print("    ImportHeader  = {")
-    print(string.format("        Sig1 = 0x%4X", info.Sig1))
-    print(string.format("        Sig1 = 0x%4X", info.Sig2))
-    print(string.format("        Version = 0x%4X", info.Version))
-    print(string.format("        Machine = 0x%4X", info.Machine))
-    print(string.format("        Sig1 = 0x%8X", info.TimeDateStamp))
-    print(string.format("        Sig1 = 0x%8X", info.SizeOfData))
-    print(string.format("        Sig1 = 0x%4X", info.OrdHint))
-    print(string.format("        Sig1 = 0x%4X", info.NameType))
+    print(string.format("      Offset = 0x%04X;", info.Offset))
+    print(string.format("        Sig1 = 0x%04X;", info.Sig1))
+    print(string.format("        Sig1 = 0x%04X;", info.Sig2))
+    print(string.format("        Version = 0x%04X;", info.Version))
+    print(string.format("        Machine = 0x%04X;", info.Machine))
+    print(string.format("        TimeDateStamp = 0x%8X;", info.TimeDateStamp))
+    print(string.format("        SizeOfData = 0x%08X;", info.SizeOfData))
+    print(string.format("        OrdHint = 0x%04X;", info.OrdHint))
+    print(string.format("        NameType = 0x%04X;", info.NameType))
+    print(string.format("        SymbolName = '%s';", info.SymbolName))
+    print(string.format("        DllName = '%s';", info.DllName))
     print("    };")
 end
 
 local function printCOFF(info)
     if info.Sig1 then
         printImportHeader(info)
-        return
+        return true;
     end
 
 
@@ -97,12 +100,12 @@ end
 
 local function printArchiveMember(member)
     print(string.format("  ['%s'] = {", member.Identifier))
-    print(string.format("    HeaderOffset = 0x%x", member.HeaderOffset))
-    print(string.format("    DateTime = '%s'", member.DateTime))
-    print(string.format("    OwnerID = '%s'", member.OwnerID));
-    print(string.format("    GroupID = '%s'", member.OwnerID));
-    print(string.format("    Size = %s", string.format("0x%x",member.Size)));
-    printCOFF(member)
+    print(string.format("    HeaderOffset = 0x%x;", member.HeaderOffset))
+    print(string.format("    DateTime = '%s';", member.DateTime))
+    print(string.format("    OwnerID = '%s';", member.OwnerID));
+    print(string.format("    GroupID = '%s';", member.OwnerID));
+    print(string.format("    Size = %s;", string.format("0x%x",member.Size)));
+    printCOFF(member.COFF)
     print(string.format("  };"))
 end
 

@@ -396,6 +396,7 @@ end
 
 local function readImportHeader(bs, res)
     res = res or {}
+    res.Offset = bs:tell();
     res.Sig1 = bs:readUInt16();
     res.Sig2 = bs:readUInt16();
     res.Version = bs:readUInt16();
@@ -404,6 +405,13 @@ local function readImportHeader(bs, res)
     res.SizeOfData = bs:readUInt32();
     res.OrdHint = bs:readUInt16();
     res.NameType = bs:readUInt16();
+
+    -- we can create a binstream range limited
+    -- to the SizeOfData to read the strings
+    -- but for now, we'll just trust there are 
+    -- two null terminated strings
+    res.SymbolName = bs:readString();
+    res.DllName = bs:readString();
 
 --[[
 print("= ImportHeader =")
@@ -425,8 +433,6 @@ local function readHeader(ms, res)
 
     res.Machine = ms:readWORD();
     res.NumberOfSections = ms:readWORD();     
---print("MACHINE: ", string.format("0x%x", res.Machine))
---print("SECTIONS: ", res.NumberOfSections)
     res.TimeDateStamp = ms:readDWORD();
     res.PointerToSymbolTable = ms:readDWORD();
     res.NumberOfSymbols = ms:readDWORD();
@@ -434,7 +440,7 @@ local function readHeader(ms, res)
     res.Characteristics = ms:readWORD();
 
 --[[
-    print("== COFF ==")
+    print("== COFF HEADER ==")
     print("Machine:", string.format("0x%x", res.Machine))
     print("nSections: ", res.NumberOfSections)
     print("nSymbols: ", res.NumberOfSymbols)
@@ -452,41 +458,46 @@ local function parse_COFF(ms, res)
     local fileStart = ms:tell();
     local hdr, err = readHeader(ms, res);
 
-    if not hdr then 
+    if not hdr then
         return false, err
     end
 
     if hdr.Machine ==0 and hdr.NumberOfSections == 0xffff then
+        -- read it again as an ImportHeader
+        ms:seek(fileStart)
         hdr, err = readImportHeader(ms)
+--print("IMPORT HEADER ==")
+--        print("Sig1: ", hdr.Sig1)
+--        print("Sig2: ", hdr.Sig2)
         -- read null terminated import name
         -- read null termianted dll name
         return hdr;
     end
 
 
-    if res.SizeOfOptionalHeader > 0  then
-        res.PEHeader, err = readPEOptionalHeader(ms);
+    if hdr.SizeOfOptionalHeader > 0  then
+        hdr.PEHeader, err = readPEOptionalHeader(ms);
     end
 
     -- Now offset should be positioned at the section table
-    res.Sections = readSectionHeaders(ms, nil, res.NumberOfSections)
-    setmetatable(res.Sections, section_mt)
+    hdr.Sections = readSectionHeaders(ms, nil, hdr.NumberOfSections)
+    setmetatable(hdr.Sections, section_mt)
 
     -- Either read the string table before the symbol
     -- table, or do fixups afterwards
-    ms:seek(fileStart + res.PointerToSymbolTable + SizeOfSymbol*hdr.NumberOfSymbols)
-    res.StringTable, strTableSize = readStringTable(ms)
+    ms:seek(fileStart + hdr.PointerToSymbolTable + SizeOfSymbol*hdr.NumberOfSymbols)
+    hdr.StringTable, strTableSize = readStringTable(ms)
     --print("  STRING TABLE SIZE: ", strTableSize)
-    if not res.StringTable then
+    if not hdr.StringTable then
         strTableSize = false;
     end
 
     -- Read symbol table
     --print("POINTER TO SYMBOLS: ", string.format("0x%04X", res.PointerToSymbolTable))
     --print("  NUMBER OF SYMBOLS: ", hdr.NumberOfSymbols)
-    ms:seek(fileStart + res.PointerToSymbolTable)
+    ms:seek(fileStart + hdr.PointerToSymbolTable)
 --    local strTableOffset = fileStart + res.PointerToSymbolTable + SizeOfSymbol*hdr.NumberOfSymbols;
-    res.SymbolTable = readSymbolTable(ms, hdr.NumberOfSymbols, strTableSize);
+    hdr.SymbolTable = readSymbolTable(ms, hdr.NumberOfSymbols, strTableSize);
 
 
 --[[

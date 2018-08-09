@@ -250,7 +250,7 @@ function parser.parse(self, bs)
         end
 
         -- It should be a COFF section, so read that next
-        parse_COFF(bs, member)
+        member.COFF, err = parse_COFF(bs)
         
         table.insert(self.Members, member);
     end
