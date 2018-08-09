@@ -56,6 +56,26 @@ function binstream.new(self, data, size, position, littleendian)
     return self:init(data, size, position, littleendian);
 end
 
+-- get a subrange of the memory stream
+-- returning a new memory stream
+function binstream.range(self, size, pos)
+    pos = pos or self.cursor;
+
+    if pos < 0 or size < 0 then
+        return false, "pos or size < 0"
+    end
+
+    if pos > self.size then
+        return false, "pos > self.size"
+    end
+
+    if ((size > (self.size - pos))) then 
+        return false, "size is greater than remainder";
+    end
+
+    return binstream(self.data+pos, size, 0 , not self.bigend)
+end
+
 -- report how many bytes remain to be read
 -- from stream
 function binstream.remaining(self)
@@ -95,13 +115,19 @@ function binstream.skip(self, offset)
      return self:seek(self.cursor + offset);
 end
 
-
+-- Seek forward to an even numbered byte boundary
+-- This could be expanded to seek to next highest
+-- alignment, based on any number, defaulting to 2
 function binstream.skipToEven(self)
     self:skip(self.cursor % 2);
 end
 
+function binstream.alignTo(self, num)
+    self:skip(self.cursor % num)
+end
+
 -- get 8 bits, and don't advance the cursor
-function binstream.peek8(self)
+function binstream.peekOctet(self)
     if (self.cursor >= self.size) then
         return false;
     end
@@ -123,9 +149,11 @@ function binstream.readOctet(self)
     return self.data[self.cursor-1]
  end
  
--- get as many bytes specified in n as an integer
- -- this could possibly work up to 7 byte integers
- -- converts from big endian to native format while it goes
+-- Read an integer value
+-- The parameter 'n' determines how many bytes to read.
+-- 'n' can be up to 8 
+-- The routine will deal with big or little endian
+
 function binstream.read(self, n)
     local v = 0;
     local i = 0;
@@ -149,13 +177,13 @@ function binstream.read(self, n)
     return v;
 end
 
-function binstream.readNumber(self, n)
-    return tonumber(self:read(n));
-end
+
 
 -- BUGBUG, do error checking against end of stream
 function binstream.readBytes(self, n, bytes)
-    if n < 1 then return false, "must specify more then 0 bytes" end
+    if n < 1 then 
+        return false, "must specify more then 0 bytes" 
+    end
 
     -- see how many bytes are remaining to be read
     local nActual = min(n, self:remaining())
@@ -163,7 +191,7 @@ function binstream.readBytes(self, n, bytes)
     -- read the minimum between remaining and 'n'
     bytes = bytes or ffi.new("uint8_t[?]", nActual)
     ffi.copy(bytes, self.data+self.cursor, nActual)
-    self:skip(n)
+    self:skip(nActual)
 
     -- if minimum is less than n, return false, and the number
     -- actually read
@@ -174,25 +202,11 @@ function binstream.readBytes(self, n, bytes)
     return bytes, nActual;
 end
 
---[[
--- Read a null terminated ASCIIZ string
--- do not read more than 'n' bytes
--- advance the cursor by actual bytes read
-function binstream.readASCIIZ(self, n)
-    n = n or 0
-    if n < 1 then return ; end
-    local bytes = ffi.new("uint8_t[?]", n+1)
 
-    for i=1,n do
-        local byte = self:readOctet();
-        bytes[i-1] = byte
 
-        if byte == 0 then break end
-    end
-    return ffi.string(bytes)
-end
---]]
-
+-- Read bytes and turn into a Lua string
+-- Read up to 'n' bytes, or up to a '\0' if
+-- 'n' is not specified.
 function binstream.readString(self, n)
     local str = nil;
 
@@ -216,73 +230,74 @@ function binstream.readString(self, n)
     return str;
 end
 
-function binstream.read16(self)  
-     return self:read(2)
+
+function binstream.readNumber(self, n)
+    return tonumber(self:read(n));
 end
 
-function binstream.read32(self)  
-    return tonumber(self:read(4))
-end
 
--- These ensure the sign is dealth with properly
+-- Read 8-bit signed integer
 function binstream.readInt8(self)
     return tonumber(ffi.cast('int8_t', self:read(1)))
 end
 
+-- Read 8-bit unsigned integer
 function binstream.readUInt8(self)
     return tonumber(ffi.cast('uint8_t', self:read(1)))
 end
 
+-- Read 16-bit signed integer
 function binstream.readInt16(self)
     return tonumber(ffi.cast('int16_t', self:read(2)))
 end
 
+-- Read 16-bit unsigned integer
 function binstream.readUInt16(self)
     return tonumber(ffi.cast('uint16_t', self:read(2)))
 end
 
-
-
+-- Read Signed 32-bit integer
 function binstream.readInt32(self)
     return tonumber(ffi.cast('int32_t', self:read(4)))
 end
 
+-- Read unsigned 32-bit integer
 function binstream.readUInt32(self)
     return tonumber(ffi.cast('uint32_t', self:read(4)))
 end
 
+-- Read signed 64-bit integer
 function binstream.readInt64(self)
     return tonumber(ffi.cast('int64_t', self:read(8)))
 end
 
+-- Read unsigned 64-bit integer
+-- we don't convert to a lua number because those
+-- can't actually represent the full range of a 64-bit integer
 function binstream.readUInt64(self)
     local v = 0ULL;
     --ffi.cast("uint64_t", 0);
     local i = 0;
---print("==== readUInt64 ====")
+
     if self.bigend then
         while  (i < 8) do
             v = bor(lshift(v, 8), self:readOctet());
             i = i + 1;
         end 
     else
-        --print("LITTLE")
         while  (i < 8) do
             local byte = ffi.cast("uint64_t",self:readOctet());
             local shifted = lshift(byte, 8*i)
-            --v = v + shifted
             v = bor(v, lshift(byte, 8*i));
-            --print(v)
             i = i + 1;
         end 
     end
 
     return v;
-
-    --return ffi.cast('uint64_t', self:read(8))
 end
 
 
+-- Some various fixed formats
 function binstream.readFixed(self)
     local decimal = self:readInt16();
     local fraction = self:readUInt16();
@@ -294,25 +309,7 @@ function binstream.readF2Dot14(self)
     return self:readInt16() / 16384;
 end
 
--- get a subrange of the memory stream
--- returning a new memory stream
-function binstream.range(self, size, pos)
-    pos = pos or self.cursor;
 
-    if pos < 0 or size < 0 then
-        return false, "pos or size < 0"
-    end
-
-    if pos > self.size then
-        return false, "pos > self.size"
-    end
-
-    if ((size > (self.size - pos))) then 
-        return false, "size is greater than remainder";
-    end
-
-    return binstream(self.data+pos, size, 0 , not self.bigend)
-end
 
 -- Convenient types named in the documentation
 binstream.readFWord = binstream.readInt16;
