@@ -168,6 +168,79 @@ IMAGE_SCN_ALIGN_4096BYTES   = 0x00D00000 ;
 IMAGE_SCN_ALIGN_8192BYTES   = 0x00E00000 ;
 };
 
+-- Related to COFF files
+-- Import Type
+local ImportType = enum {
+    [0] = "IMPORT_CODE";
+    "IMPORT_DATA";
+    "IMPORT_CONST";
+}
+
+local ImportNameType = enum {
+    [0] = "IMPORT_ORDINAL";
+    "IMPORT_NAME";
+    "IMPORT_NAME_NOPREFIX";
+    "IMPORT_NAME_UNDECORATE";
+}
+
+-- Symbol related enums
+local SymBaseType = enum {
+    [0] = "IMAGE_SYM_TYPE_NULL";
+    "IMAGE_SYM_TYPE_VOID";
+    "IMAGE_SYM_TYPE_CHAR";
+    "IMAGE_SYM_TYPE_SHORT";
+    "IMAGE_SYM_TYPE_INT";
+    "IMAGE_SYM_TYPE_LONG";
+    "IMAGE_SYM_TYPE_FLOAT";
+    "IMAGE_SYM_TYPE_DOUBLE";
+    "IMAGE_SYM_TYPE_STRUCT";
+    "IMAGE_SYM_TYPE_UNION";
+    "IMAGE_SYM_TYPE_ENUM";
+    "IMAGE_SYM_TYPE_MOE";
+    "IMAGE_SYM_TYPE_BYTE";
+    "IMAGE_SYM_TYPE_WORD";
+    "IMAGE_SYM_TYPE_UINT";
+    "IMAGE_SYM_TYPE_DWORD";
+}
+
+local SymComplexType = enum {
+    [0] = "IMAGE_SYM_DTYPE_NULL";
+    "IMAGE_SYM_DTYPE_POINTER";
+    "IMAGE_SYM_DTYPE_FUNCTION";
+    "IMAGE_SYM_DTYPE_ARRAY";
+};
+
+local SymStorageClass = enum {
+    [0XFF] = "IMAGE_SYM_CLASS_END_OF_FUNCTION";
+    [0] = "IMAGE_SYM_CLASS_NULL";
+    "IMAGE_SYM_CLASS_AUTOMATIC";
+    "IMAGE_SYM_CLASS_EXTERNAL";
+    "IMAGE_SYM_CLASS_STATIC";
+    "IMAGE_SYM_CLASS_REGISTER";
+    "IMAGE_SYM_CLASS_EXTERNAL_DEF";
+    "IMAGE_SYM_CLASS_LABEL";
+    "IMAGE_SYM_CLASS_UNDEFINED_LABEL";
+    "IMAGE_SYM_CLASS_MEMBER_OF_STRUCT";
+    "IMAGE_SYM_CLASS_ARGUMENT";
+    "IMAGE_SYM_CLASS_STRUCT_TAG";
+    "IMAGE_SYM_CLASS_MEMBER_OF_UNION";
+    "IMAGE_SYM_CLASS_UNION_TAG";
+    "IMAGE_SYM_CLASS_TYPE_DEFINITION";
+    "IMAGE_SYM_CLASS_UNDEFINED_STATIC";
+    "IMAGE_SYM_CLASS_ENUM_TAG";
+    "IMAGE_SYM_CLASS_MEMBER_OF_ENUM";
+    "IMAGE_SYM_CLASS_REGISTER_PARAM";
+    "IMAGE_SYM_CLASS_BIT_FIELD";
+    [100] = "IMAGE_SYM_CLASS_BLOCK";
+    "IMAGE_SYM_CLASS_FUNCTION";
+    "IMAGE_SYM_CLASS_END_OF_STRUCT";
+    "IMAGE_SYM_CLASS_FILE";
+    "IMAGE_SYM_CLASS_SECTION";
+    "IMAGE_SYM_CLASS_WEAK_EXTERNAL";
+    [107] = "IMAGE_SYM_CLASS_CLR_TOKEN";
+};
+
+
 -- Resource Types
 local DIFFERENCE   =  11
 local ResourceTypes = enum {
@@ -199,6 +272,7 @@ local ResourceTypes = enum {
     RT_MANIFEST                             = 24;
 }
 
+
 --[[
     Manifest related
 CREATEPROCESS_MANIFEST_RESOURCE_ID      = 1;
@@ -219,12 +293,16 @@ local exports = {
     MachineType         = MachineType,
     ResourceTypes       = ResourceTypes,
     SectionCharacteristics = SectionCharacteristics;
+
+    SymStorageClass = SymStorageClass;
+    SymBaseType = SymBaseType;
+    SymComplexType = SymComplexType;
 }
 
 setmetatable(exports, {
     __call = function(self, ...)
         for k,v in pairs(exports) do
-            _G[k] = v;
+            rawset(_G, k, v);
         end
     end,
     })

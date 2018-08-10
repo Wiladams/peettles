@@ -11,6 +11,8 @@ local binstream = require("peettles.binstream")
 local putils = require("peettles.print_utils")
 local parse_COFF = require("peettles.parse_COFF")
 
+local StorageClass = peenums.SymStorageClass;
+
 
 local filename = arg[1];
 
@@ -65,7 +67,8 @@ local function printSymbolTable(SymbolTable)
         print(string.format("      Base Type = %d;", res.BaseType));
         print(string.format("      ComplexType = %d;", res.ComplexType));
         --print(string.format("  Type = 0x%X", res.Type));
-        print(string.format("      StorageClass = %d;",res.StorageClass));
+        --print(string.format("      StorageClass = %d;",res.StorageClass));
+        print(string.format("      StorageClass = '%s';", StorageClass[res.StorageClass]))
         print(string.format("      NumberOfAuxSymbols = %d;", res.NumberOfAuxSymbols));
         print("    };")
     end
