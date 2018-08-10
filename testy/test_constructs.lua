@@ -5,9 +5,10 @@ local enum = require("peettles.enum")
 
 
 local function namespace(name)
+
 	local function closure(params)
 		res = res or {}
-		res._name = name;
+		res._name = name or "namespace";
     	setmetatable(res, {__index= _G})
     	setfenv(2, res)
 		return res
@@ -16,8 +17,9 @@ local function namespace(name)
 	return closure;
 end
 
-namespace 'operands' {
-x86_operand_type = enum {
+local nspace = namespace 'frolic' {}
+--namespace 'operands' {
+local x86_operand_type = enum {
 	OP_IMM = 0,
 	OP_MEM = 1,
 	OP_MEM_DISP = 2,
@@ -26,12 +28,12 @@ x86_operand_type = enum {
 	OP_REL = 5,
 };
 
-enum.inject(x86_operand_type, namespace);
+enum.inject(x86_operand_type, nspace);
 
-test_namespace = function()
+local function test_namespace()
 
 print("_G.OP_IMM (nil): ", _G.OP_MEM)
-print("namespace.OP_IMM (1): ", namespace.OP_MEM)
+print("namespace.OP_IMM (1): ", nspace.OP_MEM)
 print("local OP_MEM (1): ", OP_MEM)
 
 
@@ -50,7 +52,7 @@ for k,v in pairs(mod_dst_decode) do
     print(k,v)
 end
 end;
-}
+--}
 
 local function test_namedparams()
 local function foo(name)
@@ -70,4 +72,28 @@ foo 'myname' {
 }
 end
 
-test_namespace()
+local function test_sparse_enum()
+	local SymStorageClass = enum {
+		[0XFF] = "IMAGE_SYM_CLASS_END_OF_FUNCTION";
+		[0] = "IMAGE_SYM_CLASS_NULL";
+		"IMAGE_SYM_CLASS_AUTOMATIC";
+		[100] = "IMAGE_SYM_CLASS_BLOCK";
+		"IMAGE_SYM_CLASS_FUNCTION";
+		"IMAGE_SYM_CLASS_END_OF_STRUCT";
+		"IMAGE_SYM_CLASS_FILE";
+		"IMAGE_SYM_CLASS_SECTION";
+		"IMAGE_SYM_CLASS_WEAK_EXTERNAL";
+		[107] = "IMAGE_SYM_CLASS_CLR_TOKEN";
+	};
+
+	print(" FUNCTION: ", SymStorageClass[0xff])
+	print("     NULL: ", SymStorageClass[0])
+	print("AUTOMATIC: ", SymStorageClass[1])
+	print("    BLOCK: ", SymStorageClass[100])
+	print("CLR_TOKEN: ", SymStorageClass[107])
+end
+
+--test_namespace()
+--test_namedparams();
+test_sparse_enum();
+
