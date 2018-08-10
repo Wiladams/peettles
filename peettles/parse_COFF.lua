@@ -306,6 +306,13 @@ end
 ]]
 local SizeOfSymbol = 18;
 
+local function readAuxField(ms, symbol, res)
+    res = res or {}
+
+    return res;
+end
+
+
 -- nSims includes number of auxilary symbols
 local function readSymbolTable(ms, nSims, strTableSize, res)
     res = res or {}
@@ -353,10 +360,13 @@ local function readSymbolTable(ms, nSims, strTableSize, res)
 
         if sym.NumberOfAuxSymbols > 0 then
             sym.Aux = {}
+            -- classify and read the specific aux type
+
             for auxCnt = 1, sym.NumberOfAuxSymbols do
                 counter = counter + 1;
-                ms:skip(SizeOfSymbol);
-                table.insert(sym.Aux, {AuxName = "AUX"});
+                --table.insert(sym.Aux, {AuxName = "AUX"});
+                local auxtbl, err = readAuxField(ms, sym)
+                table.insert(sym.Aux, auxtbl)
             end
         end
         table.insert(res, sym);
@@ -394,6 +404,14 @@ local function readStringTable(ms, res)
     return res, sizeOfTable-4;
 end
 
+-- The 'COFF' format shows up in a few places.  It is used
+-- at the beginning of .obj files, as well as within .lib files
+-- and ultimately in .dll and .exe files
+-- For the most part, in all these cases, they can be read the same way
+-- The one exception is the .lib file.  In some cases, the regular COFF format
+-- is used, but in the case of a import library, this other form, the Import Header
+-- is used.  When to use one or the other is determined by the initial "Machine"
+-- and "nSections" from the COFF
 local function readImportHeader(bs, res)
     res = res or {}
     res.Offset = bs:tell();
