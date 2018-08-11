@@ -51,7 +51,13 @@ local function printSectionHeaders(sections)
 		print(string.format("     NumberOfRelocations = %d;", section.NumberOfRelocations))
 		print(string.format("     NumberOfLineNumbers = %d;", section.NumberOfLinenumbers))
 		print(string.format("         Characteristics = 0x%08X;", section.Characteristics))
-		print(  "    };")
+--if section.Name == ".drectve" then
+        print("  Data = [[")
+    printData(section.Data, section.SizeOfRawData);
+        print("  ]];")
+--end
+
+        print(  "    };")
 	end
 	print("  };")
 end

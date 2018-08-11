@@ -62,7 +62,6 @@ end
 function readSectionHeaders(ms, res, nsections)
     res = res or {}
 
-
     for i=1,nsections do
         local sec = {
             Name = ms:readBytes(8);
@@ -86,13 +85,23 @@ function readSectionHeaders(ms, res, nsections)
 
 		sec.Name = stringFromBuff(sec.Name, 8)
 --print("Section: ", sec.Name)
-		--res[sec.Name] = sec
+        if sec.SizeOfRawData > 0 then
+            local ds = ms:range(sec.SizeOfRawData, sec.PointerToRawData)
+            sec.Data = ds:readBytes(sec.SizeOfRawData)
+        end
+
         table.insert(res, sec)
     end
 
 	return res
 end
 
+local function readSectionData(ms, section)
+    ms:seek(section.PointerToRawData)
+    local bytes = ms:readBytes(section.SizeOfRawData)
+
+    return bytes, section.SizeOfRawData
+end
 
 --[[
     In the context of a PEHeader, a directory is a simple
@@ -327,6 +336,8 @@ local function readAuxField(ms, symbol, res)
         res.PointerToNextFunction = ms:readUInt32();
         ms:skip(2);
 
+print("AUX - Function")
+
         return res;
     end
 
@@ -341,6 +352,7 @@ local function readAuxField(ms, symbol, res)
             res.PointerToNextFunction = ms:readUInt32();
         --end
         ms:skip(2);
+print("AUX - .bf and .ef")
 
         return res;
     end
@@ -355,7 +367,7 @@ local function readAuxField(ms, symbol, res)
         res.TagIndex = ms:readUInt32();
         res.Characteristics = ms:readUInt32();
         ms:skip(10);
-
+print("AUX - Weak External")
         return res;
     end
 
@@ -381,7 +393,7 @@ print("AUX - FILE: ", res.FileName)
         res.Number = ms:readUInt16();
         res.Selection = ms:readUInt8();
         ms:skip(3);
---print("== AUX 5 ==")
+--print("== AUX 5 - Section Def ==")
 --print("Length: ", res.Length)
 --print("Number: ", res.Number)
 
@@ -448,7 +460,7 @@ local function readSymbolTable(ms, nSims, strTableSize, res)
             for auxCnt = 1, sym.NumberOfAuxSymbols do
                 counter = counter + 1;
                 local auxfld, err = readAuxField(ms, sym)
-                --print("AUX FIELD: ", auxfld.Kind)
+                --print("AUX FIELD: ", sym.Name, auxfld.Kind)
                 table.insert(sym.Aux, auxfld)
             end
         end
@@ -575,7 +587,6 @@ local function parse_COFF(ms, res)
         return hdr;
     end
 
-
     if hdr.SizeOfOptionalHeader > 0  then
         hdr.PEHeader, err = readPEOptionalHeader(ms);
     end
@@ -586,7 +597,8 @@ local function parse_COFF(ms, res)
 
     -- Either read the string table before the symbol
     -- table, or do fixups afterwards
-    ms:seek(fileStart + hdr.PointerToSymbolTable + SizeOfSymbol*hdr.NumberOfSymbols)
+    local strTableOffset = fileStart + hdr.PointerToSymbolTable + SizeOfSymbol*hdr.NumberOfSymbols;
+    ms:seek(strTableOffset)
     hdr.StringTable, strTableSize = readStringTable(ms)
     --print("  STRING TABLE SIZE: ", strTableSize)
     if not hdr.StringTable then
@@ -597,9 +609,7 @@ local function parse_COFF(ms, res)
     --print("POINTER TO SYMBOLS: ", string.format("0x%04X", res.PointerToSymbolTable))
     --print("  NUMBER OF SYMBOLS: ", hdr.NumberOfSymbols)
     ms:seek(fileStart + hdr.PointerToSymbolTable)
---    local strTableOffset = fileStart + res.PointerToSymbolTable + SizeOfSymbol*hdr.NumberOfSymbols;
     hdr.SymbolTable = readSymbolTable(ms, hdr.NumberOfSymbols, strTableSize);
-
 
 --[[
     -- Now that we have section information, we should
