@@ -184,6 +184,12 @@ local ImportNameType = enum {
 }
 
 -- Symbol related enums
+local SymSectionNumber = enum {
+    [0] = "IMAGE_SYM_UNDEFINED";
+    [-1] = "IMAGE_SYM_ABSOLUTE";
+    [-2] = "IMAGE_SYM_DEBUG";
+};
+
 local SymBaseType = enum {
     [0] = "IMAGE_SYM_TYPE_NULL";
     "IMAGE_SYM_TYPE_VOID";

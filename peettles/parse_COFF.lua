@@ -11,6 +11,8 @@ local parse_exports = require("peettles.parse_exports")
 local parse_imports = require("peettles.parse_imports")
 local parse_resources = require("peettles.parse_resources")
 
+local SymStorageClass = peenums.SymStorageClass;
+local SymSectionNumber = peenums.SymSectionNumber;
 
 
 --
@@ -307,8 +309,89 @@ end
 local SizeOfSymbol = 18;
 
 local function readAuxField(ms, symbol, res)
+    if not symbol then 
+        return false, "no symbol provided"
+    end
+
     res = res or {}
 
+    -- Format 1
+    -- Function Definitions
+    if symbol.StorageClass == SymStorageClass.IMAGE_SYM_CLASS_EXTERNAL and
+        symbol.Type == 0x20 and symbol.SectionNumber > 0 then
+        
+        res.Kind = 1;
+        res.TagIndex = ms:readUInt32();
+        res.TotalSize = ms:readUInt32();
+        res.PointerToLinenumber = ms:readUInt32();
+        res.PointerToNextFunction = ms:readUInt32();
+        ms:skip(2);
+
+        return res;
+    end
+
+    -- Format 2
+    -- .bf and .ef Symbols
+    if symbol.StorageClass == SymStorageClass.IMAGE_SYM_CLASS_FUNCTION then
+        res.Kind = 2;
+        ms:skip(4);
+        res.LineNumber = ms:readUInt16();
+        ms:skip(6);
+        --if symbol.Name == ".bf" then
+            res.PointerToNextFunction = ms:readUInt32();
+        --end
+        ms:skip(2);
+
+        return res;
+    end
+
+    -- Format 3
+    -- Weak externals
+    if symbol.StorageClass == SymStorageClass.IMAGE_SYM_CLASS_EXTERNAL and
+        symbol.SectionNumber == SymSectionNumber.IMAGE_SYM_UNDEFINED and
+        symbol.Value == 0 then
+        
+        res.Kind = 3;
+        res.TagIndex = ms:readUInt32();
+        res.Characteristics = ms:readUInt32();
+        ms:skip(10);
+
+        return res;
+    end
+
+    -- Format 4
+    -- Files
+    if symbol.StorageClass == SymStorageClass.IMAGE_SYM_CLASS_FILE then
+        local bytes = ms:readBytes(SizeOfSymbol)
+        res.Kind = 4;
+        res.FileName = stringFromBuff(bytes, SizeOfSymbol)
+print("AUX - FILE: ", res.FileName)
+
+        return res;
+    end
+
+    -- Format 5
+    -- Section Definitions
+    if symbol.StorageClass == SymStorageClass.IMAGE_SYM_CLASS_STATIC then
+        res.Kind = 5;
+        res.Length = ms:readUInt32();
+        res.NumberOfRelocations = ms:readUInt16();
+        res.NumberOfLineNumbers = ms:readUInt16();
+        res.CheckSum = ms:readUInt32();
+        res.Number = ms:readUInt16();
+        res.Selection = ms:readUInt8();
+        ms:skip(3);
+--print("== AUX 5 ==")
+--print("Length: ", res.Length)
+--print("Number: ", res.Number)
+
+        return res;
+    end
+
+    -- Unknown auxilary format
+    
+    res.Kind = 0;
+    res.Data = ms:readBytes(SizeOfSymbol)
     return res;
 end
 
@@ -334,9 +417,9 @@ local function readSymbolTable(ms, nSims, strTableSize, res)
             Name = ms:readBytes(8);
             Value = ms:readUInt32();
             SectionNumber = ms:readInt16();
-            BaseType = ms:readOctet();
-            ComplexType = ms:readOctet();
-            --Type = ms:readUInt16();
+            --BaseType = ms:readOctet();
+            --ComplexType = ms:readOctet();
+            Type = ms:readUInt16();
             StorageClass = ms:readOctet();
             NumberOfAuxSymbols = ms:readUInt8();
         }
@@ -364,9 +447,9 @@ local function readSymbolTable(ms, nSims, strTableSize, res)
 
             for auxCnt = 1, sym.NumberOfAuxSymbols do
                 counter = counter + 1;
-                --table.insert(sym.Aux, {AuxName = "AUX"});
-                local auxtbl, err = readAuxField(ms, sym)
-                table.insert(sym.Aux, auxtbl)
+                local auxfld, err = readAuxField(ms, sym)
+                --print("AUX FIELD: ", auxfld.Kind)
+                table.insert(sym.Aux, auxfld)
             end
         end
         table.insert(res, sym);

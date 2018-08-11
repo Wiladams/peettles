@@ -64,9 +64,9 @@ local function printSymbolTable(SymbolTable)
         print(string.format("      Name = '%s';", res.Name));
         print(string.format("      Value = 0x%X;", res.Value));
         print(string.format("      SectionNumber = %d;", res.SectionNumber));
-        print(string.format("      Base Type = %d;", res.BaseType));
-        print(string.format("      ComplexType = %d;", res.ComplexType));
-        --print(string.format("  Type = 0x%X", res.Type));
+        --print(string.format("      Base Type = %d;", res.BaseType));
+        --print(string.format("      ComplexType = %d;", res.ComplexType));
+        print(string.format("              Type = 0x%X;", res.Type));
         --print(string.format("      StorageClass = %d;",res.StorageClass));
         print(string.format("      StorageClass = '%s';", StorageClass[res.StorageClass]))
         print(string.format("      NumberOfAuxSymbols = %d;", res.NumberOfAuxSymbols));
