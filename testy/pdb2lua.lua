@@ -23,11 +23,18 @@ end
 
 local function printpdb(res)
     print(res.SignatureString)
-    print(string.format("  BytesPerPage = 0x%X;", res.BytesPerPage));
-    print(string.format("  FlagsPage = 0x%X;", res.FlagsPage));
-    print(string.format("  FilePages = 0x%X;", res.FilePages));
-    print(string.format("  BytesInStream = 0x%X;", res.BytesInStream));
-    print(string.format("  NumberOfPages = 0x%X;", res.NumberOfPages));
+    print(string.format("  BlockSize = 0x%X;", res.BlockSize));
+    print(string.format("  FreeBlockMapBlock = 0x%X;", res.FreeBlockMapBlock));
+    print(string.format("  NumBlocksInFile = 0x%X;", res.NumBlocksInFile));
+    print(string.format("  NumDirectoryBytes = 0x%X;", res.NumDirectoryBytes));
+	print(string.format("  NumberOfBlocks = 0x%X;", res.NumberOfBlocks));
+	print(string.format("  BlockMapAddress = 0x%X;", res.BlockMapAddress));
+	print(string.format("  FileSize = 0x%x;", res.FileSize))
+	print("  BlockMap = {")
+	for idx, blockNum in ipairs(res.BlockMap) do 
+		print(string.format("    0x%04X;", blockNum))
+	end
+	print("  };")
 end
 
 function main(filename)
