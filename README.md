@@ -29,6 +29,11 @@ Sysinternals
 
 https://docs.microsoft.com/en-us/sysinternals/
 
+PDB File References
+
+* https://moyix.blogspot.com/2007/08/pdb-stream-decomposition.html
+* https://github.com/Microsoft/microsoft-pdb/
+* https://llvm.org/docs/PDB/MsfFile.html
 
 Other Stuff
 

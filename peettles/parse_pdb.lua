@@ -1,11 +1,9 @@
 --[[
-Decode Program DataBase files from the Windows platform.
+Decode Windows Program DataBase files (.pdb).
 These files typically contain debug information for a program.
 
 References
-    https://github.com/Microsoft/microsoft-pdb/
-    https://llvm.org/docs/PDB/MsfFile.html
-
+    In root README.md file
 ]]
 
 local ffi = require("ffi")
@@ -92,12 +90,6 @@ local function readBlockMap(ms, hdr, res)
     ms:seek(fileOffset)
 
     readDWORDArray(ms, hdr.NumberOfBlocks, res)
---[[
-    for counter=1,hdr.NumberOfBlocks do
-        local index = ms:readUInt32();
-        table.insert(res, index);
-    end
---]]
 
     return res;
 end
