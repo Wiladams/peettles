@@ -22,17 +22,30 @@ if not filename then
 end
 
 local function printpdb(res)
-    print(res.SignatureString)
+
+    print(string.format("  Version = '%s';", res.SignatureString));
     print(string.format("  BlockSize = 0x%X;", res.BlockSize));
     print(string.format("  FreeBlockMapBlock = 0x%X;", res.FreeBlockMapBlock));
     print(string.format("  NumBlocksInFile = 0x%X;", res.NumBlocksInFile));
-    print(string.format("  NumDirectoryBytes = 0x%X;", res.NumDirectoryBytes));
+    print(string.format("  NumDirectoryBytes = 0x%X;", res.StreamLength));
 	print(string.format("  NumberOfBlocks = 0x%X;", res.NumberOfBlocks));
 	print(string.format("  BlockMapAddress = 0x%X;", res.BlockMapAddress));
 	print(string.format("  FileSize = 0x%x;", res.FileSize))
 	print("  BlockMap = {")
 	for idx, blockNum in ipairs(res.BlockMap) do 
 		print(string.format("    0x%04X;", blockNum))
+	end
+	print("  };")
+	print("  StreamCount = ", string.format("%d;", res.NumberOfStreams))
+	print("  Streams = {")
+	for idx, strm in ipairs(res.Streams) do
+		print(string.format("  [%d] = {\n    StreamLength = 0x%x; \n    NumberOfBlocks=%d;",
+			idx, strm.StreamLength, strm.NumberOfBlocks))
+		print("    BlockMap = {")
+		for idx, blockNum in ipairs(strm.BlockMap) do 
+			print(string.format("      0x%04X;", blockNum))
+		end
+		print("    };")
 	end
 	print("  };")
 end
