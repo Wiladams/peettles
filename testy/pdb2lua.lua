@@ -38,7 +38,8 @@ local function printpdb(res)
 	print("  };")
 	print("  StreamCount = ", string.format("%d;", res.NumberOfStreams))
 	print("  Streams = {")
-	for idx, strm in ipairs(res.Streams) do
+	for idx=0, res.NumberOfStreams-1  do
+		local strm = res.Streams[idx];
 		print(string.format("  [%d] = {\n    StreamLength = 0x%x; \n    NumberOfBlocks=%d;",
 			idx, strm.StreamLength, strm.NumberOfBlocks))
 		print("    BlockMap = {")

@@ -71,12 +71,14 @@ local function readRootStream(ms, hdr, res)
         local strmLength = ms:readDWORD();
         local numBlocks = calcNumberOfBlocks(strmLength, hdr.BlockSize);
 --print(" STREAM LENGTH: ", counter, strmLength, numBlocks)
-        table.insert(res.Streams, {StreamLength = strmLength, NumberOfBlocks = numBlocks})
+        --table.insert(res.Streams, {StreamLength = strmLength, NumberOfBlocks = numBlocks})
+        res.Streams[counter-1] = {StreamLength = strmLength, NumberOfBlocks = numBlocks};
     end
 
     -- Now that we have stream lengths and block counts
     -- Read in the BlockMap for each stream
-    for idx, strm in ipairs(res.Streams) do 
+    for counter = 1,res.NumberOfStreams do
+        local strm = res.Streams[counter-1]; 
         strm.BlockMap = readDWORDArray(ms, strm.NumberOfBlocks)
     end
 
