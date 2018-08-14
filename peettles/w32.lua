@@ -158,6 +158,25 @@ static const int CP_THREAD_ACP	= 3;	// current thread's ANSI code page
 static const int CP_SYMBOL		= 42;	// SYMBOL translations
 ]]
 
+-- Desired Access
+local GENERIC_READ  = 0x80000000;
+local GENERIC_WRITE = 0x40000000;
+
+-- Creation Disposition
+local CREATE_NEW = 1;
+local CREATE_ALWAYS = 2;
+local OPEN_EXISTING = 3;
+local OPEN_ALWAYS   = 4;
+local TRUNCATE_EXISTING = 5;
+
+
+local FILE_ATTRIBUTE_ARCHIVE = 0x20;
+local FILE_ATTRIBUTE_NORMAL = 0x80;
+
+local FILE_FLAG_RANDOM_ACCESS = 0x10000000;
+local FILE_BEGIN            = 0;
+
+
 ffi.cdef[[
 int MultiByteToWideChar(UINT CodePage,
     DWORD    dwFlags,
@@ -172,6 +191,83 @@ int WideCharToMultiByte(UINT CodePage,
     LPCSTR   lpDefaultChar,
     LPBOOL  lpUsedDefaultChar);
 ]]
+
+ffi.cdef[[
+	BOOL CreateDirectoryA(LPCSTR lpPathName, void * lpSecurityAttributes);
+
+]]
+
+--[=[
+ffi.cdef[[
+typedef union _FILE_SEGMENT_ELEMENT {
+	PVOID64   Buffer;
+	ULONGLONG Alignment;
+  } FILE_SEGMENT_ELEMENT, *PFILE_SEGMENT_ELEMENT;
+  
+BOOL WriteFileGather(
+	HANDLE                  hFile,
+	FILE_SEGMENT_ELEMENT [] aSegmentArray,
+	DWORD                   nNumberOfBytesToWrite,
+	LPDWORD                 lpReserved,
+	LPOVERLAPPED            lpOverlapped
+  );
+]]
+--]=]
+
+
+
+ffi.cdef[[
+
+    // Basic file handling
+    HANDLE CreateFileA(
+        LPCSTR lpFileName,
+        DWORD dwDesiredAccess,
+        DWORD dwShareMode,
+        void * lpSecurityAttributes,
+        DWORD dwCreationDisposition,
+        DWORD dwFlagsAndAttributes,
+        HANDLE hTemplateFile
+    );
+
+    BOOL DeleteFileA(LPCSTR lpFileName);
+
+	DWORD GetFileSize(HANDLE hFile, LPDWORD lpFileSizeHigh);
+	
+	BOOL WriteFile(
+		HANDLE       hFile,
+		LPCVOID      lpBuffer,
+		DWORD        nNumberOfBytesToWrite,
+		LPDWORD      lpNumberOfBytesWritten,
+		void * lpOverlapped
+	);
+]]
+
+ffi.cdef[[
+    // File mapping
+    HANDLE CreateFileMappingA(
+		HANDLE hFile,
+		void * lpAttributes,
+		DWORD flProtect,
+		DWORD dwMaximumSizeHigh,
+		DWORD dwMaximumSizeLow,
+		LPCSTR lpName
+    );
+
+    LPVOID MapViewOfFile(
+    	HANDLE hFileMappingObject,
+    	DWORD dwDesiredAccess,
+    	DWORD dwFileOffsetHigh,
+    	DWORD dwFileOffsetLow,
+    	SIZE_T dwNumberOfBytesToMap
+    );
+
+    BOOL UnmapViewOfFile(LPCVOID lpBaseAddress);
+
+    BOOL CloseHandle(HANDLE hObject);
+
+    DWORD GetLastError(void);
+]]
+
 
 local function toUnicode(in_Src, nsrcBytes)
 	if in_Src == nil then
@@ -242,11 +338,44 @@ local function toAnsi(in_Src, nsrcBytes)
 	return ffi.string(buff, byteswritten)
 end
 
+local function createDirectory(dirname)
+	local ret = ffi.C.CreateDirectoryA(dirname, nil);
+		
+	if ret == 0 then
+		ret = ffi.C.GetLastError();
+		return false, ret;
+	end
+
+	return ret
+end
+
+local function createFile(filename)
+	local ret = ffi.C.CreateFileA(filename, 
+    	bit.bor(GENERIC_READ, GENERIC_WRITE), 
+        0, 
+        nil,
+        CREATE_ALWAYS, 
+        FILE_ATTRIBUTE_NORMAL, 
+		nil);
+
+	return ret;
+end
+
+local function writeFile(hFile, buff, size)
+	local bytesWritten_p = ffi.new("DWORD[1]")
+
+	local ret = ffi.C.WriteFile(hFile,buff,size,bytesWritten_p,nil);
+
+	return ret, bytesWritten_p[0] ~= 0
+end
 
 local exports = {
     toUnicode = toUnicode,
     toAnsi = toAnsi,
 
+	createDirectory = createDirectory;
+	createFile = createFile;
+	writeFile = writeFile;
 }
 
 return exports

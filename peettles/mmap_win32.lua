@@ -22,72 +22,29 @@ require("peettles.w32")
 
 
 
+local ERROR_ACCESS_DENIED = 5;
+local ERROR_ALREADY_EXISTS = 183;
+local ERROR_INVALID_HANDLE = 6;
+local ERROR_INVALID_PARAMETER = 87;
 
+local GENERIC_READ  = 0x80000000;
+local GENERIC_WRITE = 0x40000000;
 
-ffi.cdef[[
-    // Basic file handling
-    HANDLE CreateFileA(
-        LPCSTR lpFileName,
-        DWORD dwDesiredAccess,
-        DWORD dwShareMode,
-        void * lpSecurityAttributes,
-        DWORD dwCreationDisposition,
-        DWORD dwFlagsAndAttributes,
-        HANDLE hTemplateFile
-    );
+local OPEN_EXISTING = 3;
+local OPEN_ALWAYS   = 4;
 
-    BOOL DeleteFileA(LPCSTR lpFileName);
-
-    DWORD GetFileSize(HANDLE hFile, LPDWORD lpFileSizeHigh);
-
-    // File mapping
-    HANDLE CreateFileMappingA(
-		HANDLE hFile,
-		void * lpAttributes,
-		DWORD flProtect,
-		DWORD dwMaximumSizeHigh,
-		DWORD dwMaximumSizeLow,
-		LPCSTR lpName
-    );
-
-    LPVOID MapViewOfFile(
-    HANDLE hFileMappingObject,
-    DWORD dwDesiredAccess,
-    DWORD dwFileOffsetHigh,
-    DWORD dwFileOffsetLow,
-    SIZE_T dwNumberOfBytesToMap
-    );
-
-    BOOL UnmapViewOfFile(LPCVOID lpBaseAddress);
-
-    BOOL CloseHandle(HANDLE hObject);
-
-    DWORD GetLastError(void);
-]]
-
-local ERROR_ACCESS_DENIED = 5
-local ERROR_ALREADY_EXISTS = 183
-local ERROR_INVALID_HANDLE = 6
-local ERROR_INVALID_PARAMETER = 87
-
-local GENERIC_READ  = 0x80000000
-local GENERIC_WRITE = 0x40000000
-
-local OPEN_EXISTING = 3
-local OPEN_ALWAYS   = 4
-
-local FILE_ATTRIBUTE_ARCHIVE = 0x20
-local FILE_FLAG_RANDOM_ACCESS = 0x10000000
-local FILE_BEGIN            = 0
+local FILE_ATTRIBUTE_ARCHIVE = 0x20;
+local FILE_FLAG_RANDOM_ACCESS = 0x10000000;
+local FILE_BEGIN            = 0;
 
 --local FILE_MAP_EXECUTE	= 0;
 local FILE_MAP_READ		= 0x04;
 local FILE_MAP_WRITE	= 0x02;
 --local FILE_MAP_TARGETS_INVALID = 0
-local FILE_MAP_ALL_ACCESS = 0xf001f
+local FILE_MAP_ALL_ACCESS = 0xf001f;
 
 local PAGE_READONLY         = 0x02; 
-local PAGE_READWRITE        = 0x4
+local PAGE_READWRITE        = 0x4;
 
 
 
