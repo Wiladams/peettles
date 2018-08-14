@@ -28,7 +28,6 @@ local SigSize_PDB7 = 0x20;  -- "Microsoft C/C++ MSF 7.00\r\n\x1ADS\0\0\0"
 -- calculate a number of pages given a size
 -- and an alignment amount
 local function calcNumberOfBlocks(numBytes, alignment)
-    --return math.floor((num + alignment) / alignment)
     return math.ceil(numBytes/alignment)
 end
 
@@ -36,6 +35,7 @@ local function calcPageForOffset(numBytes, alignment)
     return math.floor(numBytes / alignment)
 end
 
+-- Read 'numEntries' worth of continguous uint32_t records
 local function readDWORDArray(ms, numEntries, res)
     res = res or {}
 
@@ -47,16 +47,23 @@ local function readDWORDArray(ms, numEntries, res)
     return res;
 end
 
--- The guts of the parsing
+
+--[[
+    The root stream is the top level stream that gives
+    us information such as the number of other streams,
+    their sizes, and block locations.
+
+    The root stream is itself a collection of blocks,
+    although there is typically only a single block.
+
+    For now we assume that single block, but really 
+    the number is determined by hdr.NumberOfBlocks 
+]]
 local function readRootStream(ms, hdr, res)
     res = res or {}
     
---    print("== ROOT STREAM ==")
-    -- Right now we're assuming the BlockMap
-    -- contains a single block.  This may not
-    -- actually be true, there may be multiple 
-    -- blocks, if the number of streams is really 
-    -- large.  But, it's a safe assumption to start.
+
+
     local firstPageIdx = hdr.BlockMap[1]
 --print("  firstPageIdx: ", string.format("0x%X",firstPageIdx))
     ms:seek(firstPageIdx * hdr.BlockSize)
@@ -98,7 +105,7 @@ end
 
 -- The .pdb file begins with a 'superblock'
 -- which is essentially a 'root' directory to
--- this file system.  By reading this, we can
+-- this 'file system'.  By reading this, we can
 -- then recompose the rest of the streams
 local function readSuperBlock(ms, res)
     res = res or {}

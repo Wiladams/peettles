@@ -21,6 +21,16 @@ if not filename then
     return
 end
 
+local streamNames = {
+	[0] = "Old Directory (0)";
+	"PDB (1)";
+	"Type Info (2)";
+	"Directory (3)";
+	"Type Info (4)";
+
+
+}
+
 local function printpdb(res)
 
     print(string.format("  Version = '%s';", res.SignatureString));
@@ -40,11 +50,12 @@ local function printpdb(res)
 	print("  Streams = {")
 	for idx=0, res.NumberOfStreams-1  do
 		local strm = res.Streams[idx];
-		print(string.format("  [%d] = {\n    StreamLength = 0x%x; \n    NumberOfBlocks=%d;",
+		print(string.format("    [%d] = {\n      StreamLength = 0x%x; \n      NumberOfBlocks=%d;",
 			idx, strm.StreamLength, strm.NumberOfBlocks))
-		print("    BlockMap = {")
+		print(string.format("      Name = '%s';", streamNames[idx] or "UNKNOWN"));
+		print("      BlockMap = {")
 		for idx, blockNum in ipairs(strm.BlockMap) do 
-			print(string.format("      0x%04X;", blockNum))
+			print(string.format("        0x%04X;", blockNum))
 		end
 		print("    };")
 	end
