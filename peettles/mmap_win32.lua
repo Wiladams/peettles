@@ -59,7 +59,7 @@ function mmap:__new(filename, newsize)
 	local m = ffi.new(self, #filename+1)
 	
     -- Open file
-    --print("Open File")
+    --print("mmap:__new - ", filename)
     m.filehandle = ffi.C.CreateFileA(filename, 
     --bit.bor(GENERIC_READ, GENERIC_WRITE), 
             bit.bor(GENERIC_READ), 

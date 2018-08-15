@@ -21,15 +21,6 @@ if not filename then
     return
 end
 
-local streamNames = {
-	[0] = "Old Directory (0)";
-	"PDB (1)";
-	"Type Info (2)";
-	"Directory (3)";
-	"Type Info (4)";
-
-
-}
 
 local function printpdb(res)
 
@@ -52,7 +43,7 @@ local function printpdb(res)
 		local strm = res.Streams[idx];
 		print(string.format("    [%d] = {\n      StreamLength = 0x%x; \n      NumberOfBlocks=%d;",
 			idx, strm.StreamLength, strm.NumberOfBlocks))
-		print(string.format("      Name = '%s';", streamNames[idx] or "UNKNOWN"));
+		print(string.format("      Name = '%s';", strm.Name));
 		print("      BlockMap = {")
 		for idx, blockNum in ipairs(strm.BlockMap) do 
 			print(string.format("        0x%04X;", blockNum))
@@ -66,6 +57,7 @@ function main(filename)
 	local mfile = mmap(filename);
 	if not mfile then 
 		print("Error trying to map: ", filename)
+		return false;
 	end
 
     local bs = binstream(mfile:getPointer(), mfile.size, 0, true)
