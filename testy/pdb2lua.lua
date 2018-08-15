@@ -44,7 +44,7 @@ local function printpdb(res)
 		local strm = res.Streams[idx];
 		print(string.format("    [%d] = {\n      StreamLength = 0x%x; \n      NumberOfBlocks=%d;",
 			idx, strm.StreamLength, strm.NumberOfBlocks))
-		print(string.format("      Name = '%s';", streamNames[idx] or "UNKNOWN"));
+		print(string.format("      Name = '%s';", strm.Name));
 		print("      BlockMap = {")
 		for idx, blockNum in ipairs(strm.BlockMap) do 
 			print(string.format("        0x%04X;", blockNum))
@@ -58,6 +58,7 @@ function main(filename)
 	local mfile = mmap(filename);
 	if not mfile then 
 		print("Error trying to map: ", filename)
+		return false;
 	end
 
     local bs = binstream(mfile:getPointer(), mfile.size, 0, true)
