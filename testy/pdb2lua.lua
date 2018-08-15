@@ -21,15 +21,7 @@ if not filename then
     return
 end
 
-local streamNames = {
-	[0] = "Old Directory (0)";
-	"PDB (1)";
-	"Type Info (2)";
-	"Directory (3)";
-	"Type Info (4)";
 
-
-}
 
 local function printpdb(res)
 

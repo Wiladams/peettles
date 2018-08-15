@@ -63,23 +63,19 @@ local function readRootStream(ms, hdr, res)
     res = res or {}
     
 
-
     local firstPageIdx = hdr.BlockMap[1]
---print("  firstPageIdx: ", string.format("0x%X",firstPageIdx))
     ms:seek(firstPageIdx * hdr.BlockSize)
-
-
     res.NumberOfStreams = ms:readDWORD();
---print("  NUM STREAMS: ", res.NumberOfStreams)
+
     res.Streams = {}
 
-    -- Get the stream lengths, and calculate block counts
+
+    -- Get individual stream meta data
     for counter = 1,res.NumberOfStreams do 
         local strmLength = ms:readDWORD();
         local numBlocks = calcNumberOfBlocks(strmLength, hdr.BlockSize);
---print(" STREAM LENGTH: ", counter, strmLength, numBlocks)
-        --table.insert(res.Streams, {StreamLength = strmLength, NumberOfBlocks = numBlocks})
-        res.Streams[counter-1] = {StreamLength = strmLength, NumberOfBlocks = numBlocks};
+
+        res.Streams[counter-1] = {Index = counter-1, StreamLength = strmLength, NumberOfBlocks = numBlocks};
     end
 
     -- Now that we have stream lengths and block counts
@@ -93,7 +89,7 @@ local function readRootStream(ms, hdr, res)
 end
 
 
-local function readBlockMap(ms, hdr, res)
+local function readRootBlockMap(ms, hdr, res)
     res = res or {}
     local fileOffset = hdr.BlockMapAddress * hdr.BlockSize
     ms:seek(fileOffset)
@@ -129,7 +125,7 @@ local function readSuperBlock(ms, res)
     -- The BlockMap tells us where the pages are
     -- that comprise the actual directory structure
     -- it can be located anywhere in the file
-    res.BlockMap = readBlockMap(ms, res)
+    res.BlockMap = readRootBlockMap(ms, res)
 
     return res;
 end

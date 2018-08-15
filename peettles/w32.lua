@@ -349,8 +349,16 @@ local function createDirectory(dirname)
 	return ret
 end
 
-local function createFile(filename)
-	local ret = ffi.C.CreateFileA(filename, 
+local function createFile(params)
+	if not params then 
+		return false, "No parameters specified"
+	end
+
+	if not params.FileName then
+		return false, "No File Name specified"
+	end
+
+	local ret = ffi.C.CreateFileA(params.FileName, 
     	bit.bor(GENERIC_READ, GENERIC_WRITE), 
         0, 
         nil,

@@ -4,13 +4,12 @@ local ffi = require("ffi")
 local bit = require("bit")
 
 
-local enum = require("peettles.enum")
-local peenums = require("peettles.penums")
 local mmap = require("peettles.mmap_win32")
 local win32 = require("peettles.w32")
 
 local binstream = require("peettles.binstream")
 local parse_pdb = require("peettles.parse_pdb")
+
 
 local filename = arg[1];
 
@@ -19,12 +18,16 @@ if not filename then
     return
 end
 
+-- Write out a specific stream to a file
 function writeStream(bs, info, strm, idx, dirname)
---    print(idx,  strm.NumberOfBlocks, info.BlockSize, strm.StreamLength)
     -- create file
-    local filename = dirname..string.format("\\%d.dmp", idx)
-    local hFile = win32.createFile(filename)
---print("FILE: ", idx, filename)
+    --local filename = dirname..string.format("\\%d.dmp", idx)
+    local hFile, err = win32.createFile {FileName = dirname..string.format("\\%d.dmp", idx)}
+
+    if not hFile then
+        return false, err;
+    end
+
     -- write the blocks
     for _, blockNum in ipairs(strm.BlockMap) do 
         local buffPtr = bs.data + blockNum * info.BlockSize
