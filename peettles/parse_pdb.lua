@@ -91,9 +91,10 @@ local function readRootStream(ms, hdr, res)
         end
 
         res.Streams[counter-1] = {
+            Index = counter-1;
+            Name = name;
             StreamLength = strmLength; 
             NumberOfBlocks = numBlocks;
-            Name = name;
         };
 
     end

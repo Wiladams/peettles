@@ -42,9 +42,9 @@ local function printpdb(res)
 	print("  Streams = {")
 	for idx=0, res.NumberOfStreams-1  do
 		local strm = res.Streams[idx];
-		print(string.format("    [%d] = {\n      StreamLength = 0x%x; \n      NumberOfBlocks=%d;",
-			idx, strm.StreamLength, strm.NumberOfBlocks))
-		print(string.format("      Name = '%s';", strm.Name));
+		print(string.format("    ['%s'] = {\n      Index = %d;\n      StreamLength = 0x%x; \n      NumberOfBlocks=%d;",
+			strm.Name, strm.Index, strm.StreamLength, strm.NumberOfBlocks))
+		--print(string.format("      Name = '%s';", strm.Name));
 		print("      BlockMap = {")
 		for idx, blockNum in ipairs(strm.BlockMap) do 
 			print(string.format("        0x%04X;", blockNum))
