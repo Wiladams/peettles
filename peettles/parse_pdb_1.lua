@@ -26,4 +26,7 @@ local function readStream(bs, res)
     return res;
 end
 
-return readStream;
+return {
+    read = readStream;
+}
+

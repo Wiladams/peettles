@@ -21,6 +21,7 @@ local streamNumber = tonumber(arg[2]);
 
 local streamParsers = {
     [1] = require("peettles.parse_pdb_1");
+    [3] = require("peettles.parse_pdb_3");
 }
 
 --[[
@@ -57,7 +58,7 @@ function main(filename)
 
     local bs = binstream(mfile:getPointer(), mfile.size, 0, true)
 
-    local parser = streamParsers[streamNumber]
+    local parser = streamParsers[streamNumber].read;
     if not parser then
         print("NO PARSER FOR: ", streamNumber)
         return false;
@@ -70,7 +71,11 @@ function main(filename)
 		return
 	end
 
-    printInfo(info);
+    if streamParsers[streamNumber].printLua then
+        streamParsers[streamNumber].printLua(info)
+    else
+        printInfo(info);
+    end
 end
 
 main(filename)
