@@ -1,4 +1,6 @@
 -- Read PDB stream 1 (PDB Info)
+local win32 = require("peettles.w32")
+
 local function readStream(bs, res)
     res = res or {}
 
