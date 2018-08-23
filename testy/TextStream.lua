@@ -6,8 +6,6 @@ class String {
 
   std::string str() const { return {p, p + len}; }
 
-  bool empty() const { return len == 0; }
-
   bool startswith(const std::string &s) const {
     return s.size() <= len && strncmp(p, s.data(), s.size()) == 0;
   }
@@ -38,7 +36,8 @@ end,
 })
 
 local TextStream_mt = {
-    __index = TextStream
+
+    __index = TextStream;
 }
 
 function TextStream.init(self, data, len)
@@ -50,18 +49,30 @@ function TextStream.init(self, data, len)
     return obj
 end
 
-function TextStream.new(self, ...)
-    return self:init(...)
+function TextStream.new(self, str)
+    return self:init(str, #str)
+end
+
+function TextStream.toString(self)
+    if self.size == 0 then
+        return nil;
+    end
+
+    return ffi.string(self.data, self.size);
+end
+
+function TextStream.empty(self)
+    return self.size == 0;
 end
 
 function TextStream.startsWithDigit(self)
-    return self.OStream.size > 0 and
-        self.OStream.data[0] >= string.byte('0') and
-        self.OStream.data[0] <= string.byte('9')
+    return self.Stream.size > 0 and
+        self.Stream.data[0] >= string.byte('0') and
+        self.Stream.data[0] <= string.byte('9')
 end
 
 function TextStream.startsWithChar(self, ch)
-    return self.OStream.size>0 and self.OStream.data[0] == string.byte(ch)
+    return self.Stream.size>0 and self.Stream.data[0] == string.byte(ch)
 end
 
 function TextStream.startsWithString(self, str)
@@ -73,19 +84,19 @@ function TextStream.startsWithString(self, str)
 end
 
 function TextStream.get(self)
-    if self.OStream:isEOF() then
+    if self.Stream:isEOF() then
         return false, "EOF";
     end
 
-    return self.OStream:readOctet();
+    return string.char(self.Stream:readOctet());
 end
 
-function TextStream.unget(self)
-    return self.OStream:seek(self.OStream:tell()-1)
+function TextStream.unget(self, achar)
+    return self.Stream:seek(self.Stream:tell()-1)
 end
 
 function TextStream.trim(self, n)
-    return self.OStream:skip(n)
+    return self.Stream:skip(n)
 end
 
 return TextStream
