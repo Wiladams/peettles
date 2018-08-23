@@ -126,6 +126,10 @@ function binstream.alignTo(self, num)
     self:skip(self.cursor % num)
 end
 
+function binstream.getPositionPointer(self)
+    return self.data + self.cursor;
+end
+
 -- get 8 bits, and don't advance the cursor
 function binstream.peekOctet(self)
     if (self.cursor >= self.size) then

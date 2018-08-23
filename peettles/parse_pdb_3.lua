@@ -1,4 +1,5 @@
 -- Read PDB stream 3 (DBI Info)
+local ffi = require("ffi")
 local bit = require("bit")
 local band = bit.band;
 local enum = require("peettles.enum")
@@ -29,6 +30,35 @@ local function printInfo(info)
     return true
 end
 
+local function readSectionContribution(info, bs, res)
+    res = res or {}
+
+    res.Size = info.SizeOfSecMap;
+    res.Data = bs:readBytes(info.SizeOfSecMap)
+
+    return res;
+end
+
+-- reloadFileInfo
+-- initfileinfo
+local function readFileInfo(info, bs, res)
+    res = res or {}
+
+--[[
+    -- sanity check, take a peek at cRefs
+    local cRefs = ffi.cast("uint16_t *", bs:getPositionPointer())[0]
+    print("CREFS: ", string.format("0x%X", cRefs))
+
+
+    res.ModuleIndex = bs:readUInt16();
+    res.cRefs = bs:readUInt16();
+    res.Size = info.SizeOfFileInfo;
+--]]
+    res.Size = info.SizeOfFileInfo;
+    res.Data = bs:readBytes(info.SizeOfFileInfo)
+
+    return res;
+end
 --[[
     SN  uint16_t
 
@@ -118,13 +148,27 @@ local function readStream(bs, res)
 print("Calc vs Actual: ", calcSize, bs.size)
 
     -- Read in GModi substream
-    -- Read in Section contribution substream
-    -- Read in Section Map substream
-    -- Read in FileInfo
-    -- Read in TSM substream
-    -- Read in EC substream
-    -- Read in Debug Header substream
+    res.GModiData = bs:readBytes(res.SizeOfGpModi)
     
+    -- Read in Section contribution substream
+    res.SCData = bs:readBytes(res.SizeOfSC)
+
+    -- Read in Section Map substream
+    res.SecMapData = readSectionContribution(res, bs)
+
+
+    -- Read in FileInfo
+    res.FileInfo = readFileInfo(res, bs);
+
+    -- Read in TSM substream
+    res.TSMMapData = bs:readBytes(res.SizeOfTSMap)
+
+    -- Read in EC substream
+    res.ECInfoData = bs:readBytes(res.SizeOfECInfo)
+
+    -- Read in Debug Header substream
+    res.DbgHdrData = bs:readBytes(res.SizeOfDbgHdr)
+
     return res;
 end
 
