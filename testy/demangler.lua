@@ -3,6 +3,7 @@
 
     Original file
 
+    https://github.com/rui314/msvc-demangler
     https:--raw.githubusercontent.com/rui314/msvc-demangler/master/MicrosoftDemangle.cpp
 ]]
 
@@ -13,10 +14,10 @@ local ffi = require("ffi")
 local bit = require("bit")
 local bor, band = bit.bor, bit.band
 local lshift, rshift = bit.lshift, bit.rshift
-local ocstream = require("peettles.octetstream")
-local StringBuilder = require("StringBuilder")
-local TextStream = require("TextStream")
 
+local StringBuilder = require("stringbuilder")
+local TextStream = require("TextStream")
+local enum = require("peettles.enum")
 
 -- Storage classes
 local StorageClass = enum {
@@ -88,6 +89,8 @@ local FuncClass = enum {
 };
 enum.inject(FuncClass, ns)
 
+local MAX_NAMES = 10;
+
 --[[
 namespace {
 struct Type;
@@ -109,6 +112,15 @@ struct Name {
   Name *next = nullptr;
 };
 --]]
+local function Name (params)
+    params = params or {}
+    params.str = params.str;
+    params.op = params.op;
+    params.params = params.params;
+    params.next = params.next;
+
+    return params;
+end
 
 --[[
 -- The type class. Mangled symbols are first parsed and converted to
@@ -137,7 +149,46 @@ struct Type {
   Type *next = nullptr;
 };
 --]]
+local function Kind(params)
+    params = params or {}
 
+    params.prim = params.prim or 0;
+    params.ptr = params.ptr;
+    params.sclass = params.sclass or 0;
+    params.calling_conv = params.calling_conv or 0;
+    params.func_class = params.func_class or 0;
+    params.len = params.len or 0;
+    params.name = params.name;
+    params.params = params.params;
+    params.next = params.next;
+end
+
+--[[
+-- Demangler class takes the main role in demangling symbols.
+-- It has a set of functions to parse mangled symbols into Type instnaces.
+-- It also has a set of functions to convert Type instances to strings.
+class Demangler {
+
+
+  -- You are supposed to call parse() first and then check if error is
+  -- still empty. After that, call str() to get a result.
+  void parse();
+  std::string str();
+  -- The result is written to this stream.
+  --std::stringstream os;
+
+
+  -- Mangled symbol. read_* functions shorten this string
+  -- as they parse it.
+  String input;
+
+  -- The main symbol name. (e.g. "ns::foo" in "int ns::foo()".)
+  Name *symbol = nullptr;
+--]]
+
+--[[
+    The Essential Demangler class
+]]
 local Demangler = {}
 setmetatable(Demangler, {
   __call = function(self, ...)
@@ -152,178 +203,107 @@ local Demangler_mt = {
 function Demangler.init(self, str)
     local strm = TextStream(str);
 
-  local obj = {
-    input = strm;
-    names = {};
-  }
-  setmetatable(obj, Demangler_mt)
+    local obj = {
+      input = strm;
+      names = {};
+      num_names = 0;
 
-  return obj;
+      symbol = {};
+  
+      kind = Kind();  -- A parsed mangled symbol.
+      error = StringBuilder();
+
+
+    }
+    setmetatable(obj, Demangler_mt)
+
+    return obj;
 end
 
+function Demangler.create(self, str)
+    return self:init(str)
+end
 
 function Demangler.demangle(str)
     -- create state
-    local state = Demangler(str);
+    local dm = Demangler(str);
 
     -- do parsing
     local res, err = dm:parse();
 
     -- return demangled string string
-    if not res, then return 
-      false, err;
+    if not res then
+      return false, err;
     end
 
     return res;
 end
 
---[[
--- Demangler class takes the main role in demangling symbols.
--- It has a set of functions to parse mangled symbols into Type instnaces.
--- It also has a set of functions to convert Type instances to strings.
-class Demangler {
-public:
-  Demangler(String s) : input(s) {}
-
-  -- You are supposed to call parse() first and then check if error is
-  -- still empty. After that, call str() to get a result.
-  void parse();
-  std::string str();
-
-  -- Error string. Empty if there's no error.
-  std::string error;
-
-private:
-  -- Parser functions. This is a recursive-descendent parser.
-  void read_var_type(Type &ty);
-  void read_member_func_type(Type &ty);
-
-  int read_number();
-  String read_string(bool memorize);
-  void memorize_string(String s);
-  Name *read_name();
-  void read_func_ptr(Type &ty);
-  void read_operator(Name *);
-  String read_operator_name();
-  String read_until(const std::string &s);
-  PrimTy read_prim_type();
-  int read_func_class();
-  int8_t read_func_access_class();
-  CallingConv read_calling_conv();
-  void read_func_return_type(Type &ty);
-  int8_t read_storage_class();
-  int8_t read_storage_class_for_return();
-
-  void read_class(Type &ty, PrimTy prim);
-  void read_pointee(Type &ty, PrimTy prim);
-  void read_array(Type &ty);
-  Type *read_params();
-
-  int peek() { return (input.len == 0) ? -1 : input.p[0]; }
-
-
---]]
-
-function Demangler.consume(self, str)
-    if (not self.input:startswith(str)) then
+function Demangler:consume(str)
+    if (not self.input:startsWith(str)) then
       return false;
     end
 
-    input:trim(#str);
+    self.input:trim(#str);
 
     return true;
 end
 
-function Demangler.expect(self, s) 
+function Demangler:expect(s) 
   
-    if (not self:consume(s) and error:empty())
-      error = s + " expected, but got " + input.str();
+    if (not self:consume(s) and self.error:empty()) then
+      self.error = self.error + s + " expected, but got " + self.input:str();
     end
 
     return true;
 end
-
---[[
-  -- Mangled symbol. read_* functions shorten this string
-  -- as they parse it.
-  String input;
-
-  -- A parsed mangled symbol.
-  Type type;
-
-  -- The main symbol name. (e.g. "ns::foo" in "int ns::foo()".)
-  Name *symbol = nullptr;
-
-  -- Memory allocator.
-  Arena arena;
-
-  -- The first 10 names in a mangled name can be back-referenced by
-  -- special name @[0-9]. This is a storage for the first 10 names.
-  String names[10];
-  size_t num_names = 0;
---]]
-
-  --[[
-  -- Functions to convert Type to String.
-  void write_pre(Type &ty);
-  void write_post(Type &ty);
-  void write_class(Name *name, String s);
-  void write_params(Type *ty);
-  void write_name(Name *name);
-  void write_tmpl_params(Name *name);
-  void write_operator(Name *name);
-  void write_space();
-
-  -- The result is written to this stream.
-  std::stringstream os;
---]]
-
-
-
 
 -- Parser entry point.
 function Demangler:parse()
   -- MSVC-style mangled symbols must start with '?'.
-  if (not consume("?")) {
-    symbol = new (arena) Name;
-    symbol->str = input;
-    kind.prim = Unknown;
-  }
+  if (not self:consume("?")) then
+    self.symbol.str = self.input;
+    self.kind.prim = Unknown;
+  end
 
+--[[
   -- What follows is a main symbol name. This may include
   -- namespaces or class names.
-  symbol = read_name();
+  self.symbol = self:read_name();
 
   -- Read a variable.
-  if (consume("3")) {
-    read_var_type(type);
+  if (self:consume("3")) then
+    self:read_var_type(self.kind);
     return;
-  }
+  end
 
   -- Read a non-member function.
-  if (consume("Y")) {
-    kind.prim = Function;
-    kind.calling_conv = read_calling_conv();
-    kind.ptr = new (arena) Type;
-    kind.ptr->sclass = read_storage_class_for_return();
-    read_var_type(*kind.ptr);
+  if (consume("Y")) then
+    self.kind.prim = Function;
+    self.kind.calling_conv = self:read_calling_conv();
+    self.kind.ptr = Kind();
+    self.kind.ptr.sclass = self:read_storage_class_for_return();
+    self:read_var_type(self.kind.ptr);
     kind.params = self:read_params();
     return;
-  }
+  end
 
   -- Read a member function.
-  kind.prim = Function;
-  kind.func_class = (FuncClass)read_func_class();
-  expect("E"); -- if 64 bit
-  kind.sclass = read_func_access_class();
-  kind.calling_conv = read_calling_conv();
+  self.kind.prim = Function;
+  self.kind.func_class = self:read_func_class();
+  self:expect("E"); -- if 64 bit
+  self.kind.sclass = self:read_func_access_class();
+  self.kind.calling_conv = self:read_calling_conv();
 
-  kind.ptr = new (arena) Type;
-  kind.ptr->sclass = read_storage_class_for_return();
-  read_func_return_type(*kind.ptr);
-  kind.params = read_params();
-}
+  self.kind.ptr = Kind();
+  self.kind.ptr.sclass = self:read_storage_class_for_return();
+  self:read_func_return_type(self.kind.ptr);
+  self.kind.params = self:read_params();
+--]]
+    return self;
+end
 
+--[==[
 -- Sometimes numbers are encoded in mangled symbols. For example,
 -- "int (*x)[20]" is a valid C type (x is a pointer to an array of
 -- length 20), so we need some way to embed numbers as part of symbols.
@@ -338,46 +318,53 @@ function Demangler:parse()
 function Demangler:read_number()
     local neg = self:consume("?");
 
-    if (input:startsWithDigit()) then
-        int32_t ret = *input.p - '0' + 1;
-        input.trim(1);
+    if (self.input:startsWithDigit()) then
+        local ret = *self.input.p - '0' + 1;
+        self:input.trim(1);
         if neg then return -ret end
         return ret;
-
     end
 
     local ret = 0;
-    for (size_t i = 0; i < input.size; ++i) {
+    for (size_t i = 0; i < self.input.size; ++i) {
     char c = input.data[i];
-    if (c == '@') {
+    if (c == string.byte('@')) then
       input.trim(i + 1);
       return neg ? -ret : ret;
-    }
-    if ('A' <= c && c <= 'P') {
-      ret = (ret << 4) + (c - 'A');
-      continue;
-    }
-    break;
-  }
+    end
 
-  if (error.empty())
-    error = "bad number: " + input.str();
-  return 0;
+    if (string.byte('A') <= c and c <= string.byte('P')) then
+      ret = (ret << 4) + (c - string.byte('A'));
+      continue;
+    end
+    break;
+  end
+
+  if (self.error.empty()) then
+    self.error = "bad number: " .. self.input.str();
+  end
+
+  return false;
 end
 
 -- Read until the next '@'.
 function Demangler:read_string(memorize) 
+    local i = 1;
+    while (size_t i = 0; i < input.size; ++i) {
+      if (input.p[i] != '@') then
+        i = i + 1;
+        continue;
+      end
 
-  for (size_t i = 0; i < input.size; ++i) {
-    if (input.p[i] != '@')
-      continue;
-    String ret = input.substr(0, i);
-    input.trim(i + 1);
+      String ret = input.substr(0, i);
+      input.trim(i + 1);
 
-    if (memorize)
-      memorize_string(ret);
-    return ret;
-  }
+      if (memorize) then
+        memorize_string(ret);
+      end
+
+      return ret;
+    end
 
   if (error.empty())
     error = "read_string: missing '@': " + input.str();
@@ -386,71 +373,78 @@ end
 
 -- First 10 strings can be referenced by special names ?0, ?1, ..., ?9.
 -- Memorize it.
-function Demangler:memorize_string(String s)
-  if (num_names >= sizeof(names) / sizeof(*names))
-    return;
-  for (size_t i = 0; i < num_names; ++i)
-    if (s == names[i])
+function Demangler:memorize_string(s)
+    if self.num_names > MAX_NAMES then
       return;
-  names[num_names++] = s;
+    end
+
+    for i=1, self.num_names do 
+      if names[i] == s then 
+        return true;
+      end
+    end
+    self.num_names = self.num_names + 1;
+    self.names[self.num_names] = s;
 end
 
 -- Parses a name in the form of A@B@C@@ which represents C::B::A.
-Name *Demangler::read_name() {
+function Demangler::read_name() {
   Name *head = nullptr;
 
-  while (!consume("@")) {
-    Name *elem = new (arena) Name;
+  while (!consume("@")) do
+    local elem = Name();
 
-    if (input.startswith_digit()) {
-      size_t i = input.p[0] - '0';
-      if (i >= num_names) {
-        if (error.empty())
-          error = "name reference too large: " + input.str();
+    if (self.input:startsWithDigit()) then
+      local i = self.input:peek() - string.byte('0');
+      if (i >= self.num_names) then
+        if (self.error.empty()) then
+          self.error = "name reference too large: " .. self.input:str();
+        end
         return {};
-      }
-      input.trim(1);
-      elem->str = names[i];
-    } else if (consume("?$")) {
+      end
+      self.input:trim(1);
+      elem.str = self.names[i];
+    elseif (consume("?$")) then
       -- Class template.
-      elem->str = read_string(false);
-      elem->params = read_params();
+      elem.str = self:read_string(false);
+      elem.params = self:read_params();
       expect("@");
-    } else if (consume("?")) {
+    elseif (consume("?")) then
       -- Overloaded operator.
-      read_operator(elem);
-    } else {
+      self:read_operator(elem);
+    else
       -- Non-template functions or classes.
-      elem->str = read_string(true);
-    }
+      elem.str = self:read_string(true);
+    end
 
-    elem->next = head;
+    elem.next = head;
     head = elem;
-  }
+  end
 
   return head;
-}
+end
 
-void Demangler::read_func_ptr(Type &ty) {
-  Type *tp = new (arena) Type;
-  tp->prim = Function;
-  tp->ptr = new (arena) Type;
-  read_var_type(*tp->ptr);
-  tp->params = read_params();
+function Demangler::read_func_ptr(ty)
+  local tp = Kind();
+  tp.prim = Function;
+  tp.ptr = Kind();
+  self:read_var_type(tp.ptr);
+  tp.params = self:read_params();
 
   ty.prim = Ptr;
   ty.ptr = tp;
 
-  if (input.startswith("@Z"))
-    input.trim(2);
-  else if (input.startswith("Z"))
-    input.trim(1);
-}
+  if (self.input:startsWith("@Z")) then
+    self.input:trim(2);
+  elseif (self.input:startsWith("Z")) then
+    self.input:trim(1);
+  end
+end
 
 function Demangler:read_operator(name)
-  name.op = read_operator_name();
-  if (error.empty() and peek() ~= '@')
-    name.str = read_string(true);
+  name.op = self:read_operator_name();
+  if (error:empty() and self:peek() ~= '@')
+    name.str = self:read_string(true);
 end
 
 local operatorName = {
@@ -465,14 +459,14 @@ local operatorName = {
     '8' = "==";
     '9' = "!=";
     'A' = "[]";
-    'C' = "->";
+    'C' = ".";
     'D' = "*";
     'E' = "++";
     'F' = "--";
     'G' = "-";
     'H' = "+";
     'I' = "&";
-    'J' = "->*";
+    'J' = ".*";
     'K' = "/";
     'L' = "%";
     'M' = "<";
@@ -639,10 +633,13 @@ int8_t Demangler::read_storage_class() {
 }
 
 int8_t Demangler::read_storage_class_for_return() {
-  if (!consume("?"))
-    return 0;
-  String orig = input;
+  if (not consume("?")) then
+    return false;
+  end
 
+  --String orig = input;
+
+  local c = self.input:get();
   switch (input.get()) {
   case 'A': return 0;
   case 'B': return Const;
@@ -740,7 +737,7 @@ void Demangler::read_pointee(Type &ty, PrimTy prim) {
   ty.prim = prim;
   expect("E"); -- if 64 bit
   ty.ptr = new (arena) Type;
-  ty.ptr->sclass = read_storage_class();
+  ty.ptr.sclass = read_storage_class();
   read_var_type(*ty.ptr);
 }
 
@@ -754,10 +751,10 @@ void Demangler::read_array(Type &ty) {
 
   Type *tp = &ty;
   for (int i = 0; i < dimension; ++i) {
-    tp->prim = Array;
-    tp->len = read_number();
-    tp->ptr = new (arena) Type;
-    tp = tp->ptr;
+    tp.prim = Array;
+    tp.len = read_number();
+    tp.ptr = new (arena) Type;
+    tp = tp.ptr;
   }
 
   if (consume("$$C")) {
@@ -791,8 +788,8 @@ Type * Demangler::read_params() {
       input.trim(1);
 
       *tp = new (arena) Type(*backref[n]);
-      (*tp)->next = nullptr;
-      tp = &(*tp)->next;
+      (*tp).next = nullptr;
+      tp = &(*tp).next;
       continue;
     }
 
@@ -805,15 +802,15 @@ Type * Demangler::read_params() {
     -- memorizing them doesn't save anything.
     if (idx <= 9 && len - input.size > 1)
       backref[idx++] = *tp;
-    tp = &(*tp)->next;
+    tp = &(*tp).next;
   }
   return head;
 }
+--]==]
 
 
 
-
-
+--[=[
 -- Converts an AST to a string.
 --
 -- Converting an AST representing a C++ type to a string is tricky due
@@ -865,7 +862,7 @@ function AST:write_pre(Type &ty) {
     -- so "int *x(int)" means "x is a function returning int *". We need
     -- parentheses to supercede the default precedence. (e.g. we want to
     -- emit something like "int (*x)(int)".)
-    if (ty.ptr->prim == Function || ty.ptr->prim == Array)
+    if (ty.ptr.prim == Function || ty.ptr.prim == Array)
       os << "(";
 
     if (ty.prim == Ptr)
@@ -918,7 +915,7 @@ function AST:write_post(Type &ty)
   }
 
   if (ty.prim == Ptr || ty.prim == Ref) {
-    if (ty.ptr->prim == Function || ty.ptr->prim == Array)
+    if (ty.ptr.prim == Function || ty.ptr.prim == Array)
       os << ")";
     write_post(*ty.ptr);
     return;
@@ -932,7 +929,7 @@ end
 
 -- Write a function or template parameter list.
 function AST:write_params(Type *params) {
-  for (Type *tp = params; tp; tp = tp->next) {
+  for (Type *tp = params; tp; tp = tp.next) {
     if (tp != params)
       os << ",";
     write_pre(*tp);
@@ -952,41 +949,41 @@ function AST:write_name(Name *name) {
   write_space();
 
   -- Print out namespaces or outer class names.
-  for (; name->next; name = name->next) {
-    os << name->str;
+  for (; name.next; name = name.next) {
+    os << name.str;
     write_tmpl_params(name);
     os << "::";
   }
 
   -- Print out a regular name.
-  if (name->op.empty()) {
-    os << name->str;
+  if (name.op.empty()) {
+    os << name.str;
     write_tmpl_params(name);
     return;
   }
 
   -- Print out ctor or dtor.
-  if (name->op == "ctor" || name->op == "dtor") {
-    os << name->str;
-    write_params(name->params);
+  if (name.op == "ctor" || name.op == "dtor") {
+    os << name.str;
+    write_params(name.params);
     os << "::";
-    if (name->op == "dtor")
+    if (name.op == "dtor")
       os << "~";
-    os << name->str;
+    os << name.str;
     return;
   }
 
   -- Print out an overloaded operator.
-  if (!name->str.empty())
-    os << name->str << "::";
-  os << "operator" << name->op;
+  if (!name.str.empty())
+    os << name.str << "::";
+  os << "operator" << name.op;
 }
 
 function AST:write_tmpl_params(Name *name) {
-  if (!name->params)
+  if (!name.params)
     return;
   os << "<";
-  write_params(name->params);
+  write_params(name.params);
   os << ">";
 }
 
@@ -997,5 +994,6 @@ function AST:write_space()
   if (!s.empty() && isalpha(s.back()))
     os << " ";
 end
+--]=]
 
-
+return Demangler

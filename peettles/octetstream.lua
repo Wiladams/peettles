@@ -123,7 +123,7 @@ end
 
 -- get 8 bits, and don't advance the cursor
 function octetstream.peekOctet(self)
-    if (self.cursor >= self.size) then
+    if (self.cursor >= self.size or self.cursor < 0) then
         return false;
     end
 
