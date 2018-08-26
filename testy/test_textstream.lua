@@ -47,6 +47,30 @@ local function test_consume()
     print(ts:str())
 end
 
+local function test_substr()
+    print("==== test_substr ====")
+    local str = '?x@@3HA';
+    local ts = TextStream(str)
+
+    print(str)
+    print("substr(5,2): ", ts:substr(5,2))
+    print("substr(0,5): ", ts:substr(0,5))
+    print("substr(0,1): ", ts:substr(0,1))
+    print("substr(6,1): ", ts:substr(6,1))
+end
+
+local function test_length()
+    print("==== test_length ====")
+    local str = "1234567890"
+    local ts = TextStream(str)
+
+    print("Length (10): ", #ts, ts:length())
+    ts:trim(5);
+    print("Length (5): ", #ts, ts:length())
+end
+
 --test_get();
 --test_startswith();
-test_consume();
+--test_consume();
+--test_substr();
+test_length();

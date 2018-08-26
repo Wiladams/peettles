@@ -37,6 +37,8 @@ end,
 
 local TextStream_mt = {
     __index = TextStream;
+
+    __len = function(self) return self:length() end;
 }
 
 function TextStream.init(self, data, len)
@@ -52,6 +54,20 @@ function TextStream.new(self, str)
     return self:init(str, #str)
 end
 
+function TextStream.isEqual(self, rhs)
+    return self:startsWith(rhs)
+end
+
+function TextStream.length(self)
+    return self.Stream:remaining();
+end
+
+-- Create an unassociated copy of this stream
+-- Like a copy constructor from current position
+function TextStream.clone(self)
+    return TextStream(self:str())
+end
+
 -- turn the whole stream into a string
 function TextStream.str(self)
     if self.Stream:remaining() == 0 then
@@ -59,6 +75,42 @@ function TextStream.str(self)
     end
 
     return ffi.string(self.Stream:getPositionPointer(), self.Stream:remaining());
+end
+
+
+
+
+function TextStream.peek(self, offset)
+    return self.Stream:peekOctet(offset);
+end
+
+function TextStream.peekDigit(self, office)
+    local abyte, err = self.Stream:peekOctet(offset)
+    if abyte then
+        return abyte - string.byte('0');
+    end
+
+    return false, "character not peek'd"
+end
+
+function TextStream.get(self)
+    if self.Stream:isEOF() then
+        return false, "EOF";
+    end
+
+    return string.char(self.Stream:readOctet());
+end
+
+function TextStream.unget(self, achar)
+    return self.Stream:seek(self.Stream:tell()-1)
+end
+
+function TextStream.trim(self, n)
+    return self.Stream:skip(n)
+end
+
+function TextStream.substr(self, offset, len)
+    return ffi.string(self.Stream:getPositionPointer()+offset, len);
 end
 
 function TextStream.startsWithDigit(self)
@@ -93,28 +145,5 @@ function TextStream.startsWith(self, str)
     return true;
 end
 
-function TextStream.isEqual(self, rhs)
-    return self:startsWith(rhs)
-end
-
-function TextStream.peek(self)
-    return self.Stream:peekOctet();
-end
-
-function TextStream.get(self)
-    if self.Stream:isEOF() then
-        return false, "EOF";
-    end
-
-    return string.char(self.Stream:readOctet());
-end
-
-function TextStream.unget(self, achar)
-    return self.Stream:seek(self.Stream:tell()-1)
-end
-
-function TextStream.trim(self, n)
-    return self.Stream:skip(n)
-end
 
 return TextStream

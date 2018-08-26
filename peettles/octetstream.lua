@@ -122,12 +122,14 @@ function octetstream.getPositionPointer(self)
 end
 
 -- get 8 bits, and don't advance the cursor
-function octetstream.peekOctet(self)
-    if (self.cursor >= self.size or self.cursor < 0) then
+function octetstream.peekOctet(self, offset)
+    offset = offset or 0
+
+    if (self.cursor+offset >= self.size or self.cursor+offset < 0) then
         return false;
     end
 
-    return self.data[self.cursor];
+    return self.data[self.cursor+offset];
 end
 
 -- get 8 bits, and advance the cursor

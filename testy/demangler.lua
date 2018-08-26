@@ -266,11 +266,12 @@ function Demangler:parse()
     self.kind.prim = Unknown;
   end
 
---[[
+
   -- What follows is a main symbol name. This may include
   -- namespaces or class names.
   self.symbol = self:read_name();
 
+--[[
   -- Read a variable.
   if (self:consume("3")) then
     self:read_var_type(self.kind);
@@ -278,7 +279,7 @@ function Demangler:parse()
   end
 
   -- Read a non-member function.
-  if (consume("Y")) then
+  if (self:consume("Y")) then
     self.kind.prim = Function;
     self.kind.calling_conv = self:read_calling_conv();
     self.kind.ptr = Kind();
@@ -346,30 +347,30 @@ function Demangler:read_number()
 
   return false;
 end
+--]==]
 
 -- Read until the next '@'.
 function Demangler:read_string(memorize) 
-    local i = 1;
-    while (size_t i = 0; i < input.size; ++i) {
-      if (input.p[i] != '@') then
-        i = i + 1;
-        continue;
+    for i = 0, self.input.Stream:remaining()-1 do
+      if (self.input:peek(i) == string.byte('@')) then
+        local ret = self.input:substr(0, i);
+        self.input:trim(i + 1);
+  
+        if (memorize) then
+          self:memorize_string(ret);
+        end
+  
+        return ret;        
       end
-
-      String ret = input.substr(0, i);
-      input.trim(i + 1);
-
-      if (memorize) then
-        memorize_string(ret);
-      end
-
-      return ret;
     end
 
-  if (error.empty())
-    error = "read_string: missing '@': " + input.str();
-  return "";
+    if (self.error:empty()) then
+      self.error = self.error + "read_string: missing '@': " + self.input:str();
+    end
+
+    return "";
 end
+
 
 -- First 10 strings can be referenced by special names ?0, ?1, ..., ?9.
 -- Memorize it.
@@ -388,28 +389,28 @@ function Demangler:memorize_string(s)
 end
 
 -- Parses a name in the form of A@B@C@@ which represents C::B::A.
-function Demangler::read_name() {
-  Name *head = nullptr;
+function Demangler:read_name()
+    local head = nil;
 
-  while (!consume("@")) do
+  while (not self:consume("@")) do
     local elem = Name();
 
     if (self.input:startsWithDigit()) then
       local i = self.input:peek() - string.byte('0');
       if (i >= self.num_names) then
-        if (self.error.empty()) then
-          self.error = "name reference too large: " .. self.input:str();
+        if (self.error:empty()) then
+          self.error = self.error + "name reference too large: " + self.input:str();
         end
         return {};
       end
       self.input:trim(1);
       elem.str = self.names[i];
-    elseif (consume("?$")) then
+    elseif (self:consume("?$")) then
       -- Class template.
       elem.str = self:read_string(false);
       elem.params = self:read_params();
-      expect("@");
-    elseif (consume("?")) then
+      self:expect("@");
+    elseif (self:consume("?")) then
       -- Overloaded operator.
       self:read_operator(elem);
     else
@@ -423,7 +424,7 @@ function Demangler::read_name() {
 
   return head;
 end
-
+--[==[
 function Demangler::read_func_ptr(ty)
   local tp = Kind();
   tp.prim = Function;
@@ -440,72 +441,78 @@ function Demangler::read_func_ptr(ty)
     self.input:trim(1);
   end
 end
+--]==]
 
-function Demangler:read_operator(name)
-  name.op = self:read_operator_name();
-  if (error:empty() and self:peek() ~= '@')
-    name.str = self:read_string(true);
-end
+
+
 
 local operatorName = {
-    '0' = "ctor";
-    '1' = "dtor";
-    '2' = " new";
-    '3' = " delete";
-    '4' = "=";
-    '5' = ">>";
-    '6' = "<<";
-    '7' = "!";
-    '8' = "==";
-    '9' = "!=";
-    'A' = "[]";
-    'C' = ".";
-    'D' = "*";
-    'E' = "++";
-    'F' = "--";
-    'G' = "-";
-    'H' = "+";
-    'I' = "&";
-    'J' = ".*";
-    'K' = "/";
-    'L' = "%";
-    'M' = "<";
-    'N' = "<=";
-    'O' = ">";
-    'P' = ">=";
-    'Q' = ",";
-    'R' = "()";
-    'S' = "~";
-    'T' = "^";
-    'U' = "|";
-    'V' = "&&";
-    'W' = "||";
-    'X' = "*=";
-    'Y' = "+=";
-    'Z' = "-=";
-    '_' = {
-      '0' = "/=";
-      '1' = "%=";
-      '2' = ">>=";
-      '3' = "<<=";
-      '4' = "&=";
-      '5' = "|=";
-      '6' = "^=";
-      'U' = " new[]";
-      'V' = " delete[]";
+    ['0'] = "ctor";
+    ['1'] = "dtor";
+    ['2'] = " new";
+    ['3'] = " delete";
+    ['4'] = "=";
+    ['5'] = ">>";
+    ['6'] = "<<";
+    ['7'] = "!";
+    ['8'] = "==";
+    ['9'] = "!=";
+    ['A'] = "[]";
+    ['C'] = ".";
+    ['D'] = "*";
+    ['E'] = "++";
+    ['F'] = "--";
+    ['G'] = "-";
+    ['H'] = "+";
+    ['I'] = "&";
+    ['J'] = ".*";
+    ['K'] = "/";
+    ['L'] = "%";
+    ['M'] = "<";
+    ['N'] = "<=";
+    ['O'] = ">";
+    ['P'] = ">=";
+    ['Q'] = ",";
+    ['R'] = "()";
+    ['S'] = "~";
+    ['T'] = "^";
+    ['U'] = "|";
+    ['V'] = "&&";
+    ['W'] = "||";
+    ['X'] = "*=";
+    ['Y'] = "+=";
+    ['Z'] = "-=";
+    ['_'] = {
+      ['0'] = "/=";
+      ['1'] = "%=";
+      ['2'] = ">>=";
+      ['3'] = "<<=";
+      ['4'] = "&=";
+      ['5'] = "|=";
+      ['6'] = "^=";
+      ['U'] = " new[]";
+      ['V'] = " delete[]";
     };
 }
 
 
-function Demangler:read_operator_name() {
-  --String orig = input;
+function Demangler:read_operator_name()
+  local orig = self.input:clone();
 
-  local achar = input:get()
+  local function returnError()
+    if (self.error:empty()) then
+      self.error = self.error + "unknown operator name: " + orig.str();
+    end
+  
+    return "";
+  end
+
+  local achar = self.input:get()
   local rhs1 = operatorName[achar]
 
   if not rhs1 then
     -- didn't find the operator in the table
-    return false, achar
+    return returnError();
   end
 
   -- found a straight translation
@@ -515,28 +522,34 @@ function Demangler:read_operator_name() {
 
   -- right hand side is a table, so get another
   -- character to lookup
-  achar = input:get();
+  achar = self.input:get();
   local rhs2 = rhs1[achar]
   
   if not rhs2 then
-    return false, rhs2;
+    return returnError();
   end
 
   -- again, got a rhs, so return it
-  if rhs == '_' then
+  if rhs2 == '_' then
     if self:consume("L") then
       return " co_await";
     end
+
+    return rhs2;
   end
 
-  return rhs;
-  
-
-  if (error.empty())
-    error = "unknown operator name: " + orig.str();
-  return "";
+  return returnError()
 end
 
+function Demangler:read_operator(name)
+    name.op = self:read_operator_name();
+    if (self.error:empty() and self.input:peek() ~= '@') then
+        name.str = self:read_string(true);
+    end
+end
+
+
+--[==[
 int Demangler::read_func_class() {
   switch (int c = input.get()) {
   case 'A': return Private;
@@ -651,50 +664,45 @@ int8_t Demangler::read_storage_class_for_return() {
     return 0;
   }
 }
+--]==]
 
 -- Reads a variable kind.
-void Demangler::read_var_type(Type &ty) {
-  if (consume("W4")) {
+function Demangler:read_var_type(ty) 
+  if (self:consume("W4")) then
     ty.prim = Enum;
     ty.name = read_name();
-    return;
-  }
+    return self;
+  end
 
-  if (consume("P6A")) {
-    read_func_ptr(ty);
-    return;
-  }
+  if (self:consume("P6A")) then
+    return self:read_func_ptr(ty);
+  end
 
-  switch (int c = input.get()) {
-  case 'T':
-    read_class(ty, Union);
-    return;
-  case 'U':
-    read_class(ty, Struct);
-    return;
-  case 'V':
-    read_class(ty, Class);
-    return;
-  case 'A':
-    read_pointee(ty, Ref);
-    return;
-  case 'P':
-    read_pointee(ty, Ptr);
-    return;
-  case 'Q':
-    read_pointee(ty, Ptr);
+  local c = self.input:get();
+  
+  if c == string.byte('T') then
+    return self:read_class(ty, Union);
+  elseif c == string.byte('U') then
+    return self:read_class(ty, Struct);
+  elseif c == string.byte('V') then
+    return self:read_class(ty, Class);
+  elseif c == string.byte('A') then
+    return self:read_pointee(ty, Ref);
+  elseif c == string.byte('P') then
+    return self:read_pointee(ty, Ptr);
+  elseif c == string.byte('Q') then
+    self:read_pointee(ty, Ptr);
     ty.sclass = Const;
-    return;
-  case 'Y':
-    read_array(ty);
-    return;
-  default:
-    input.unget(c);
-    ty.prim = read_prim_type();
-    return;
-  }
-}
-
+    return self;
+  elseif c == string.byte('Y') then
+    return self:read_array(ty);
+  else
+    self.input:unget(c);
+    ty.prim = self:read_prim_type();
+    return self;
+  end
+end
+--[==[
 -- Reads a primitive kind.
 PrimTy Demangler::read_prim_type() 
 {
@@ -727,85 +735,99 @@ PrimTy Demangler::read_prim_type()
     error = "unknown primitive type: " + orig.str();
   return Unknown;
 }
+--]==]
 
-void Demangler::read_class(Type &ty, PrimTy prim) {
+function Demangler:read_class(ty, prim)
   ty.prim = prim;
-  ty.name = read_name();
+  ty.name = self:read_name();
+
+  return self;
 }
 
-void Demangler::read_pointee(Type &ty, PrimTy prim) {
-  ty.prim = prim;
-  expect("E"); -- if 64 bit
-  ty.ptr = new (arena) Type;
-  ty.ptr.sclass = read_storage_class();
-  read_var_type(*ty.ptr);
-}
 
-void Demangler::read_array(Type &ty) {
-  int dimension = read_number();
-  if (dimension <= 0) {
-    if (error.empty())
-      error = "invalid array dimension: " + std::to_string(dimension);
-    return;
-  }
+function Demangler:read_pointee(ty, prim)
+    ty.prim = prim;
+    self:expect("E"); -- if 64 bit
+    ty.ptr = Kind();
+    ty.ptr.sclass = self:read_storage_class();
+    self:read_var_type(ty.ptr);
 
-  Type *tp = &ty;
-  for (int i = 0; i < dimension; ++i) {
+    return self;
+end
+
+function Demangler:read_array(ty)
+  local dimension = self:read_number();
+  if (dimension <= 0) then
+    if (self.error.empty()) then
+      self.error = self.error + "invalid array dimension: " + tostring(dimension);
+    end
+
+    return self;
+  end
+
+  local tp = ty;
+  for i = 0, dimension-1 do
     tp.prim = Array;
-    tp.len = read_number();
-    tp.ptr = new (arena) Type;
+    tp.len = self:read_number();
+    tp.ptr = Kind();
     tp = tp.ptr;
-  }
+  end
 
-  if (consume("$$C")) {
-    if (consume("B"))
+  if (self:consume("$$C")) then
+    if (self:consume("B")) then
       ty.sclass = Const;
-    else if (consume("C") || consume("D"))
-      ty.sclass = Const | Volatile;
-    else if (!consume("A") && error.empty())
-      error = "unkonwn storage class: " + input.str();
-  }
+    elseif (self:consume("C") or self:consume("D")) then
+      ty.sclass = bor(Const, Volatile);
+    elseif (not self:consume("A") and self.error.empty()) then
+      self.error = self.error + "unkonwn storage class: " + self.input:str();
+    end
+  end
 
-  read_var_type(*tp);
-}
+  self:read_var_type(tp);
 
+  return self;
+end
+
+--[==[
 -- Reads a function or a template parameters.
-Type * Demangler::read_params() {
+function Demangler:read_params()
   -- Within the same parameter list, you can backreference the first 10 types.
   Type *backref[10];
-  int idx = 0;
+  local idx = 0;
 
-  Type *head = nullptr;
+  local head = nil;
   Type **tp = &head;
-  while (error.empty() && !input.startswith('@') && !input.startswith('Z')) {
-    if (input.startswith_digit()) {
-      int n = input.p[0] - '0';
-      if (n >= idx) {
+
+  while (self.error:empty() and not self.input:startsWith('@') and not self.input:startsWith('Z')) do
+    if (self.input:startsWithDigit()) then
+      local n = self.input:peekDigit();
+      if (n >= idx) then
         if (error.empty())
-          error = "invalid backreference: " + input.str();
-        return nullptr;
-      }
-      input.trim(1);
+          self.error = self.error + "invalid backreference: " + self.input:str();
+        return nil;
+      end
+      self.input:trim(1);
 
       *tp = new (arena) Type(*backref[n]);
       (*tp).next = nullptr;
       tp = &(*tp).next;
       continue;
-    }
+    end
 
-    size_t len = input.len;
+    local len = self.input:length();
 
-    *tp = new (arena) Type;
-    read_var_type(**tp);
+    *tp = Kind();
+    self:read_var_type(**tp);
 
     -- Single-letter types are ignored for backreferences because
     -- memorizing them doesn't save anything.
-    if (idx <= 9 && len - input.size > 1)
+    if (idx <= 9 && len - self.input:length() > 1)
       backref[idx++] = *tp;
     tp = &(*tp).next;
-  }
+  end
+
   return head;
-}
+end
 --]==]
 
 
