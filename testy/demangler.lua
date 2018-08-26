@@ -149,6 +149,20 @@ struct Type {
   Type *next = nullptr;
 };
 --]]
+local function assignKind(lhs, rhs)
+    lhs.prim = rhs.prim or 0;
+    lhs.ptr = rhs.ptr;
+    lhs.sclass = rhs.sclass or 0;
+    lhs.calling_conv = rhs.calling_conv or 0;
+    lhs.func_class = rhs.func_class or 0;
+    lhs.len = rhs.len or 0;
+    lhs.name = rhs.name;
+    lhs.params = rhs.params;
+    lhs.next = rhs.next;
+
+    return lhs;
+end
+
 local function Kind(params)
     params = params or {}
 
@@ -161,34 +175,14 @@ local function Kind(params)
     params.name = params.name;
     params.params = params.params;
     params.next = params.next;
+
+    return params
 end
 
---[[
--- Demangler class takes the main role in demangling symbols.
--- It has a set of functions to parse mangled symbols into Type instnaces.
--- It also has a set of functions to convert Type instances to strings.
-class Demangler {
-
-
-  -- You are supposed to call parse() first and then check if error is
-  -- still empty. After that, call str() to get a result.
-  void parse();
-  std::string str();
-  -- The result is written to this stream.
-  --std::stringstream os;
-
-
-  -- Mangled symbol. read_* functions shorten this string
-  -- as they parse it.
-  String input;
-
-  -- The main symbol name. (e.g. "ns::foo" in "int ns::foo()".)
-  Name *symbol = nullptr;
---]]
 
 --[[
     The Essential Demangler class
-]]
+--]]
 local Demangler = {}
 setmetatable(Demangler, {
   __call = function(self, ...)
@@ -213,7 +207,7 @@ function Demangler.init(self, str)
       kind = Kind();  -- A parsed mangled symbol.
       error = StringBuilder();
 
-
+      os = StringBuilder();
     }
     setmetatable(obj, Demangler_mt)
 
@@ -229,7 +223,9 @@ function Demangler.demangle(str)
     local dm = Demangler(str);
 
     -- do parsing
-    local res, err = dm:parse();
+    local res = dm:parse();
+
+print("RESULT: ", res.symbol.str, res.error)
 
     -- return demangled string string
     if not res then
@@ -259,52 +255,55 @@ function Demangler:expect(s)
 end
 
 -- Parser entry point.
+  -- You are supposed to call parse() first and then check if error is
+  -- still empty. After that, call str() to get a result.
+
 function Demangler:parse()
-  -- MSVC-style mangled symbols must start with '?'.
-  if (not self:consume("?")) then
-    self.symbol.str = self.input;
-    self.kind.prim = Unknown;
-  end
+    -- MSVC-style mangled symbols must start with '?'.
+    if (not self:consume("?")) then
+        self.symbol.str = self.input;
+        self.kind.prim = Unknown;
+    end
 
 
-  -- What follows is a main symbol name. This may include
-  -- namespaces or class names.
-  self.symbol = self:read_name();
+    -- What follows is a main symbol name. This may include
+    -- namespaces or class names.
+    self.symbol = self:read_name();
 
---[[
-  -- Read a variable.
-  if (self:consume("3")) then
-    self:read_var_type(self.kind);
-    return;
-  end
 
-  -- Read a non-member function.
-  if (self:consume("Y")) then
+    -- Read a variable.
+    if (self:consume("3")) then
+      self:read_var_type(self.kind);
+      return self;
+    end
+
+    -- Read a non-member function.
+    if (self:consume("Y")) then
+      self.kind.prim = Function;
+      self.kind.calling_conv = self:read_calling_conv();
+      self.kind.ptr = Kind();
+      self.kind.ptr.sclass = self:read_storage_class_for_return();
+      self:read_var_type(self.kind.ptr);
+      self.kind.params = self:read_params();
+      return self;
+    end
+
+    -- Read a member function.
     self.kind.prim = Function;
+    self.kind.func_class = self:read_func_class();
+    self:expect("E"); -- if 64 bit
+    self.kind.sclass = self:read_func_access_class();
     self.kind.calling_conv = self:read_calling_conv();
+
     self.kind.ptr = Kind();
     self.kind.ptr.sclass = self:read_storage_class_for_return();
-    self:read_var_type(self.kind.ptr);
-    kind.params = self:read_params();
-    return;
-  end
+    self:read_func_return_type(self.kind.ptr);
+    self.kind.params = self:read_params();
 
-  -- Read a member function.
-  self.kind.prim = Function;
-  self.kind.func_class = self:read_func_class();
-  self:expect("E"); -- if 64 bit
-  self.kind.sclass = self:read_func_access_class();
-  self.kind.calling_conv = self:read_calling_conv();
-
-  self.kind.ptr = Kind();
-  self.kind.ptr.sclass = self:read_storage_class_for_return();
-  self:read_func_return_type(self.kind.ptr);
-  self.kind.params = self:read_params();
---]]
     return self;
 end
 
---[==[
+--[[
 -- Sometimes numbers are encoded in mangled symbols. For example,
 -- "int (*x)[20]" is a valid C type (x is a pointer to an array of
 -- length 20), so we need some way to embed numbers as part of symbols.
@@ -316,42 +315,48 @@ end
 --                        ::= <hex digit>+ @  # when Numbrer == 0 or >= 10
 --
 -- <hex-digit>            ::= [A-P]           # A = 0, B = 1, ...
+--]]
 function Demangler:read_number()
     local neg = self:consume("?");
 
+    -- the easy case, where a number is the first thing
     if (self.input:startsWithDigit()) then
-        local ret = *self.input.p - '0' + 1;
-        self:input.trim(1);
+        local ret = self.input:peekDigit() + 1;
+        self.input:trim(1);
         if neg then return -ret end
+
         return ret;
     end
 
     local ret = 0;
-    for (size_t i = 0; i < self.input.size; ++i) {
-    char c = input.data[i];
-    if (c == string.byte('@')) then
-      input.trim(i + 1);
-      return neg ? -ret : ret;
+    for i = 0, self.input:length() do
+        local c = self.input:peek();
+        if (c == string.byte('@')) then
+            self.input:trim(i + 1);
+
+            if neg then 
+              return -ret
+            end
+            return ret;
+        end
+
+        if (string.byte('A') <= c and c <= string.byte('P')) then
+            ret = lshift(ret, 4) + (c - string.byte('A'));
+        else
+            break;
+        end
     end
 
-    if (string.byte('A') <= c and c <= string.byte('P')) then
-      ret = (ret << 4) + (c - string.byte('A'));
-      continue;
+    if (self.error:empty()) then
+        self.error = self.error + "bad number: " + self.input:str();
     end
-    break;
-  end
 
-  if (self.error.empty()) then
-    self.error = "bad number: " .. self.input.str();
-  end
-
-  return false;
+    return 0;
 end
---]==]
 
 -- Read until the next '@'.
 function Demangler:read_string(memorize) 
-    for i = 0, self.input.Stream:remaining()-1 do
+    for i = 0, self.input:length()-1 do
       if (self.input:peek(i) == string.byte('@')) then
         local ret = self.input:substr(0, i);
         self.input:trim(i + 1);
@@ -376,11 +381,11 @@ end
 -- Memorize it.
 function Demangler:memorize_string(s)
     if self.num_names > MAX_NAMES then
-      return;
+      return self;
     end
 
-    for i=1, self.num_names do 
-      if names[i] == s then 
+    for i=0, self.num_names-1 do 
+      if self.names[i] == s then 
         return true;
       end
     end
@@ -424,8 +429,8 @@ function Demangler:read_name()
 
   return head;
 end
---[==[
-function Demangler::read_func_ptr(ty)
+
+function Demangler:read_func_ptr(ty)
   local tp = Kind();
   tp.prim = Function;
   tp.ptr = Kind();
@@ -441,8 +446,6 @@ function Demangler::read_func_ptr(ty)
     self.input:trim(1);
   end
 end
---]==]
-
 
 
 
@@ -501,7 +504,7 @@ function Demangler:read_operator_name()
 
   local function returnError()
     if (self.error:empty()) then
-      self.error = self.error + "unknown operator name: " + orig.str();
+      self.error = self.error + "unknown operator name: " + orig:str();
     end
   
     return "";
@@ -548,129 +551,140 @@ function Demangler:read_operator(name)
     end
 end
 
+function Demangler:read_func_class()
+    local c = self.input:get();
 
---[==[
-int Demangler::read_func_class() {
-  switch (int c = input.get()) {
-  case 'A': return Private;
-  case 'B': return Private | FFar;
-  case 'C': return Private | Static;
-  case 'D': return Private | Static;
-  case 'E': return Private | Virtual;
-  case 'F': return Private | Virtual;
-  case 'I': return Protected;
-  case 'J': return Protected | FFar;
-  case 'K': return Protected | Static;
-  case 'L': return Protected | Static | FFar;
-  case 'M': return Protected | Virtual;
-  case 'N': return Protected | Virtual | FFar;
-  case 'Q': return Public;
-  case 'R': return Public | FFar;
-  case 'S': return Public | Static;
-  case 'T': return Public | Static | FFar;
-  case 'U': return Public | Virtual;
-  case 'V': return Public | Virtual | FFar;
-  case 'Y': return Global;
-  case 'Z': return Global | FFar;
-  default:
-    input.unget(c);
-    if (error.empty())
-      error = "unknown func class: " + input.str();
+    if c == string.byte('A') then return Private;
+    elseif c == string.byte('B') then return bor(Private, FFar);
+    elseif c == string.byte('C') then return bor(Private, Static);
+    elseif c == string.byte('D') then return bor(Private, Static);
+    elseif c == string.byte('E') then return bor(Private, Virtual);
+    elseif c == string.byte('F') then return bor(Private, Virtual);
+    elseif c == string.byte('I') then return Protected;
+    elseif c == string.byte('J') then return bor(Protected, FFar);
+    elseif c == string.byte('K') then return bor(Protected, Static);
+    elseif c == string.byte('L') then return bor(Protected, Static, FFar);
+    elseif c == string.byte('M') then return bor(Protected, Virtual);
+    elseif c == string.byte('N') then return bor(Protected, Virtual, FFar);
+    elseif c == string.byte('Q') then return Public;
+    elseif c == string.byte('R') then return bor(Public, FFar);
+    elseif c == string.byte('S') then return bor(Public, Static);
+    elseif c == string.byte('T') then return bor(Public, Static, FFar);
+    elseif c == string.byte('U') then return bor(Public, Virtual);
+    elseif c == string.byte('V') then return bor(Public, Virtual, FFar);
+    elseif c == string.byte('Y') then return Global;
+    elseif c == string.byte('Z') then return bor(Global, FFar);
+    end
+
+    self.input:unget(c);
+    if (self.error:empty()) then
+        self.error = self.error + "unknown func class: " + self.input:str();
+    end
+
     return 0;
-  }
-}
+end
+
 
 local FuncAccessClass = {
-  'A' = Cdecl;
-  'B' = Cdecl;
-  'C' = Pascal;
-  'E' = Thiscall;
-  'G' = Stdcall;
-  'I' = Fastcall;
+  A = Cdecl;
+  B = Cdecl;
+  C = Pascal;
+  E = Thiscall;
+  G = Stdcall;
+  I = Fastcall;
 }
 
 function Demangler:read_func_access_class()
-    local c = input:get();
+    local c = self.input:get();
     local rhs = FuncAccessClass[c]
     if rhs then
       return rhs;
     end
 
-    input:unget(c);
+    self.input:unget(c);
 
-    return false;
-
+    return 0;
 end
 
-local function  Demanger:read_calling_conv(input) 
+function  Demangler:read_calling_conv() 
 
-  String orig = input;
+    local orig = self.input:clone();
 
-  switch (input.get()) {
-  case 'A': return Cdecl;
-  case 'B': return Cdecl;
-  case 'C': return Pascal;
-  case 'E': return Thiscall;
-  case 'G': return Stdcall;
-  case 'I': return Fastcall;
-  default:
-    if (error.empty())
-      error = "unknown calling convention: " + orig.str();
+    local c = self.input:get();
+
+    if c == string.byte('A') then return Cdecl;
+    elseif c == string.byte('B') then return Cdecl;
+    elseif c == string.byte('C') then return Pascal;
+    elseif c == string.byte('E') then return Thiscall;
+    elseif c == string.byte('G') then return Stdcall;
+    elseif c == string.byte('I') then return Fastcall;
+    end
+
+    if (self.error:empty()) then
+      self.error = self.error + "unknown calling convention: " + orig:str();
+    end
+
     return Cdecl;
-  }
-};
+end
 
 -- <return-type> ::= <type>
 --               ::= @ # structors (they have no declared return type)
-void Demangler::read_func_return_type(Type &ty) {
-  if (consume("@"))
+function Demangler:read_func_return_type(ty)
+  if (self:consume("@")) then
     ty.prim = None;
   else
-    read_var_type(ty);
-}
-
-int8_t Demangler::read_storage_class() {
-  switch (int c = input.get()) {
-  case 'A': return 0;
-  case 'B': return Const;
-  case 'C': return Volatile;
-  case 'D': return Const | Volatile;
-  case 'E': return Far;
-  case 'F': return Const | Far;
-  case 'G': return Volatile | Far;
-  case 'H': return Const | Volatile | Far;
-  default:
-    input.unget(c);
-    return 0;
-  }
-}
-
-int8_t Demangler::read_storage_class_for_return() {
-  if (not consume("?")) then
-    return false;
+    self:read_var_type(ty);
   end
 
-  --String orig = input;
+  return self;
+end
 
-  local c = self.input:get();
-  switch (input.get()) {
-  case 'A': return 0;
-  case 'B': return Const;
-  case 'C': return Volatile;
-  case 'D': return Const | Volatile;
-  default:
-    if (error.empty())
-      error = "unknown storage class: " + orig.str();
+function Demangler:read_storage_class()
+    local c = self.input:get();
+
+  if c == string.byte('A') then return 0;
+  elseif c == string.byte('B') then return Const;
+  elseif c == string.byte('C') then return Volatile;
+  elseif c == string.byte('D') then return bor(Const, Volatile);
+  elseif c == string.byte('E') then return Far;
+  elseif c == string.byte('F') then return bor(Const, Far);
+  elseif c == string.byte('G') then return bor(Volatile, Far);
+  elseif c == string.byte('H') then return bor(Const, Volatile, Far);
+  end
+
+    self.input:unget(c);
     return 0;
-  }
-}
---]==]
+end
+
+function Demangler:read_storage_class_for_return()
+    if (not self:consume("?")) then
+      return 0;
+    end
+
+    local orig = input:clone();
+
+    local c = self.input:get();
+
+    if c == string.byte('A') then return 0;
+    elseif c == string.byte('B') then return Const;
+    elseif c == string.byte('C') then return Volatile;
+    elseif c == string.byte('D') then return bor(Const, Volatile); 
+    end
+
+    -- default case
+    if (self.error:empty()) then
+        self.error = self.error + "unknown storage class: " + orig:str();
+    end
+
+    return 0;
+end
+
 
 -- Reads a variable kind.
 function Demangler:read_var_type(ty) 
   if (self:consume("W4")) then
     ty.prim = Enum;
-    ty.name = read_name();
+    ty.name = self:read_name();
     return self;
   end
 
@@ -702,48 +716,59 @@ function Demangler:read_var_type(ty)
     return self;
   end
 end
---[==[
+
 -- Reads a primitive kind.
-PrimTy Demangler::read_prim_type() 
-{
-  String orig = input;
-
-  switch (input.get()) {
-  case 'X': return Void;
-  case 'D': return Char;
-  case 'C': return Schar;
-  case 'E': return Uchar;
-  case 'F': return Short;
-  case 'G': return Ushort;
-  case 'H': return Int;
-  case 'I': return Uint;
-  case 'J': return Long;
-  case 'K': return Ulong;
-  case 'M': return Float;
-  case 'N': return Double;
-  case 'O': return Ldouble;
-  case '_':
-    switch (input.get()) {
-    case 'N': return Bool;
-    case 'J': return Int64;
-    case 'K': return Uint64;
-    case 'W': return Wchar;
+local PrimitiveType = {
+    X = Void;
+    D = Char;
+    C = Schar;
+    E = Uchar;
+    F = Short;
+    G = Ushort;
+    H = Int;
+    I = Uint;
+    J = Long;
+    K = Ulong;
+    M = Float;
+    N = Double;
+    O = Ldouble;
+    ['_'] = {
+      N = Bool;
+      J = Int64;
+      K = Uint64;
+      W = Wchar;
     }
-  }
-
-  if (error.empty())
-    error = "unknown primitive type: " + orig.str();
-  return Unknown;
 }
---]==]
+
+function Demangler:read_prim_type() 
+
+    local orig = self.input:clone();
+    local c = string.char(self.input:get());
+    local rhs = PrimitiveType[c]
+
+    if rhs and type(rhs) == "string" then
+        return rhs;
+    elseif rhs and type(rhs) == "table" then
+        c = string.char(self.input:get())
+        local primtype = rhs[c];
+        if primtype then
+            return primtype;
+        end
+    end 
+
+    if (self.error:empty()) then
+          self.error = self.error + "unknown primitive type: " + orig:str();
+    end
+
+    return Unknown;
+end
 
 function Demangler:read_class(ty, prim)
-  ty.prim = prim;
-  ty.name = self:read_name();
+    ty.prim = prim;
+    ty.name = self:read_name();
 
-  return self;
-}
-
+    return self;
+end
 
 function Demangler:read_pointee(ty, prim)
     ty.prim = prim;
@@ -758,7 +783,7 @@ end
 function Demangler:read_array(ty)
   local dimension = self:read_number();
   if (dimension <= 0) then
-    if (self.error.empty()) then
+    if (self.error:empty()) then
       self.error = self.error + "invalid array dimension: " + tostring(dimension);
     end
 
@@ -778,7 +803,7 @@ function Demangler:read_array(ty)
       ty.sclass = Const;
     elseif (self:consume("C") or self:consume("D")) then
       ty.sclass = bor(Const, Volatile);
-    elseif (not self:consume("A") and self.error.empty()) then
+    elseif (not self:consume("A") and self.error:empty()) then
       self.error = self.error + "unkonwn storage class: " + self.input:str();
     end
   end
@@ -788,51 +813,57 @@ function Demangler:read_array(ty)
   return self;
 end
 
---[==[
+
 -- Reads a function or a template parameters.
 function Demangler:read_params()
   -- Within the same parameter list, you can backreference the first 10 types.
-  Type *backref[10];
+  local backref = {};
   local idx = 0;
 
-  local head = nil;
-  Type **tp = &head;
+  local head = Kind();
+  local tp = head;
 
   while (self.error:empty() and not self.input:startsWith('@') and not self.input:startsWith('Z')) do
     if (self.input:startsWithDigit()) then
       local n = self.input:peekDigit();
       if (n >= idx) then
-        if (error.empty())
+        if (self.error:empty()) then
           self.error = self.error + "invalid backreference: " + self.input:str();
+        end
         return nil;
       end
+
       self.input:trim(1);
 
-      *tp = new (arena) Type(*backref[n]);
-      (*tp).next = nullptr;
-      tp = &(*tp).next;
-      continue;
+      tp = assignKind(tp, backref[n]);
+      tp.next = Kind();
+      tp = tp.next;
+    else
+      local len = self.input:length();
+
+      tp = Kind();
+      self:read_var_type(tp);
+
+      -- Single-letter types are ignored for backreferences because
+      -- memorizing them doesn't save anything.
+      if (idx <= 9 and len - self.input:length() > 1) then
+        backref[idx] = tp;
+        idx = idx + 1;
+      end
+
+      tp = tp.next;
     end
-
-    local len = self.input:length();
-
-    *tp = Kind();
-    self:read_var_type(**tp);
-
-    -- Single-letter types are ignored for backreferences because
-    -- memorizing them doesn't save anything.
-    if (idx <= 9 && len - self.input:length() > 1)
-      backref[idx++] = *tp;
-    tp = &(*tp).next;
   end
 
   return head;
 end
---]==]
+
 
 
 
 --[=[
+  This should be attached to the 'Kind' class
+
 -- Converts an AST to a string.
 --
 -- Converting an AST representing a C++ type to a string is tricky due
@@ -850,25 +881,25 @@ end
 -- the "first half" of type declaration, and write_post() writes the
 -- "second half". For example, write_pre() writes a return type for a
 -- function and write_post() writes an parameter list.
-local ASTToString = {}
+local TypeWriter = {}
 
-function ASTToString:write(ast)
+function TypeWriter:write(ast)
     write_pre(type);
     write_name(symbol);
     write_post(type);
     return os.str();
 end
   
-function AST:toString()  -- toString 
+function TypeWriter:str()  -- toString 
   write_pre(type);
   write_name(symbol);
   write_post(type);
 
-  return os.str();
+  return os:str();
 end
 
 -- Write the "first half" of a given kind.
-function AST:write_pre(Type &ty) {
+function TypeWriter:write_pre(Type &ty) {
   switch (ty.prim) {
   case Unknown:
   case None:
@@ -926,7 +957,7 @@ function AST:write_pre(Type &ty) {
 }
 
 -- Write the "second half" of a given kind.
-function AST:write_post(Type &ty)
+function TypeWriter:write_post(Type &ty)
   if (ty.prim == Function) {
     os << "(";
     write_params(ty.params);
@@ -950,7 +981,7 @@ function AST:write_post(Type &ty)
 end
 
 -- Write a function or template parameter list.
-function AST:write_params(Type *params) {
+function TypeWriter:write_params(Type *params) {
   for (Type *tp = params; tp; tp = tp.next) {
     if (tp != params)
       os << ",";
@@ -959,13 +990,13 @@ function AST:write_params(Type *params) {
   }
 }
 
-function AST:write_class(Name *name, String s) {
+function TypeWriter:write_class(Name *name, String s) {
   os << s << " ";
   write_name(name);
 }
 
 -- Write a name read by read_name().
-function AST:write_name(Name *name) {
+function TypeWriter:write_name(Name *name) {
   if (!name)
     return;
   write_space();
@@ -978,7 +1009,7 @@ function AST:write_name(Name *name) {
   }
 
   -- Print out a regular name.
-  if (name.op.empty()) {
+  if (name.op:empty()) {
     os << name.str;
     write_tmpl_params(name);
     return;
@@ -996,12 +1027,12 @@ function AST:write_name(Name *name) {
   }
 
   -- Print out an overloaded operator.
-  if (!name.str.empty())
+  if (!name.str:empty())
     os << name.str << "::";
   os << "operator" << name.op;
 }
 
-function AST:write_tmpl_params(Name *name) {
+function TypeWriter:write_tmpl_params(Name *name) {
   if (!name.params)
     return;
   os << "<";
@@ -1010,10 +1041,10 @@ function AST:write_tmpl_params(Name *name) {
 }
 
 -- Writes a space if the last token does not end with a punctuation.
-function AST:write_space() 
+function TypeWriter:write_space() 
 
   std::string s = os.str();
-  if (!s.empty() && isalpha(s.back()))
+  if (!s:empty() && isalpha(s.back()))
     os << " ";
 end
 --]=]

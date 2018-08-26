@@ -98,7 +98,7 @@ function TextStream.get(self)
         return false, "EOF";
     end
 
-    return string.char(self.Stream:readOctet());
+    return self.Stream:readOctet();
 end
 
 function TextStream.unget(self, achar)
