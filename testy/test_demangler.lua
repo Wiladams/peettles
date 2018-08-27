@@ -3,7 +3,7 @@ package.path = "../?.lua;"..package.path
 
 local Demangler = require("demangler")
 
-local cases = {
+local longcases = {
  ['?x@@3HA'] = 'int x';
  ['?x@@3PEAHEA'] = 'int*x';
  ['?x@@3PEAPEAHEA'] = 'int**x';
@@ -89,7 +89,11 @@ local cases = {
  ['??_V@YAXPEAXAEAVklass@@@Z'] = 'void operator delete[](void*,class klass&)';
 }
 
-local function main()
+local shortcases = {
+    ['?x@@3HA'] = 'int x';
+}
+
+local function main(cases)
     for k,v in pairs(cases) do
         if Demangler.demangle(k) == v then
             print("PASS")
@@ -99,4 +103,5 @@ local function main()
     end
 end
 
-main()
+--main(longcases)
+main(shortcases)

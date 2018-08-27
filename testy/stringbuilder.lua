@@ -91,4 +91,8 @@ function StringBuilder.toString(self, perLine)
     return table.concat(self.accumulator, perLine)
 end
 
+function StringBuilder.str(self)
+    return table.concat(self.accumulator);
+end
+
 return StringBuilder

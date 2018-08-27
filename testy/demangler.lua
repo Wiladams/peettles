@@ -249,6 +249,7 @@ function Demangler:expect(s)
   
     if (not self:consume(s) and self.error:empty()) then
       self.error = self.error + s + " expected, but got " + self.input:str();
+      return false;
     end
 
     return true;
@@ -265,14 +266,16 @@ function Demangler:parse()
         self.kind.prim = Unknown;
     end
 
+print("PARSE 1: ", self.input:str())
 
     -- What follows is a main symbol name. This may include
     -- namespaces or class names.
     self.symbol = self:read_name();
 
-
+print("PARSE 2: ", self.symbol.str, "REMAIN:",self.input:str(), "ERR:",self.error:str())
     -- Read a variable.
     if (self:consume("3")) then
+print("PARSE 3: ", "REMAIN: ", self.input:str())
       self:read_var_type(self.kind);
       return self;
     end
@@ -397,11 +400,14 @@ end
 function Demangler:read_name()
     local head = nil;
 
+print("read_name (1) : ", self.input:str())
   while (not self:consume("@")) do
+print("read_name(2) : ", self.input:str())
     local elem = Name();
 
     if (self.input:startsWithDigit()) then
       local i = self.input:peek() - string.byte('0');
+print("read_name(2.1), i: ", i)
       if (i >= self.num_names) then
         if (self.error:empty()) then
           self.error = self.error + "name reference too large: " + self.input:str();
@@ -419,8 +425,10 @@ function Demangler:read_name()
       -- Overloaded operator.
       self:read_operator(elem);
     else
+
       -- Non-template functions or classes.
       elem.str = self:read_string(true);
+      print("read_string (2.4): ", elem.str)
     end
 
     elem.next = head;
@@ -682,18 +690,21 @@ end
 
 -- Reads a variable kind.
 function Demangler:read_var_type(ty) 
+  --print("read_var_type (1): ", ty)
   if (self:consume("W4")) then
     ty.prim = Enum;
     ty.name = self:read_name();
     return self;
   end
 
+  --print("read_var_type (2): ", "REMAIN: ", self.input:str())
   if (self:consume("P6A")) then
     return self:read_func_ptr(ty);
   end
 
   local c = self.input:get();
-  
+  --print("read_var_type (3): ", string.char(c))
+
   if c == string.byte('T') then
     return self:read_class(ty, Union);
   elseif c == string.byte('U') then
@@ -712,6 +723,7 @@ function Demangler:read_var_type(ty)
     return self:read_array(ty);
   else
     self.input:unget(c);
+--print("read_var_type (4): ", self.input:str())
     ty.prim = self:read_prim_type();
     return self;
   end
@@ -741,12 +753,15 @@ local PrimitiveType = {
 }
 
 function Demangler:read_prim_type() 
-
+--print("read_prim_type (1): ", self.input:str())
     local orig = self.input:clone();
+--print("read_prim_type (2): ", orig:str())
     local c = string.char(self.input:get());
+--print("read_prim_type (3): ", c)
     local rhs = PrimitiveType[c]
+--print("read_prim_type (4): ", rhs)
 
-    if rhs and type(rhs) == "string" then
+    if rhs and type(rhs) == "number" then
         return rhs;
     elseif rhs and type(rhs) == "table" then
         c = string.char(self.input:get())
