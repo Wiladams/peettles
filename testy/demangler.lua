@@ -179,6 +179,245 @@ local function Kind(params)
     return params
 end
 
+--  This should be attached to the 'Kind' class
+-- Converts an AST to a string.
+--
+-- Converting an AST representing a C++ type to a string is tricky due
+-- to the bad grammar of the C++ declaration inherited from C. You have
+-- to construct a string from inside to outside. For example, if a type
+-- X is a pointer to a function returning int, the order you create a
+-- string becomes something like this:
+--
+--   (1) X is a pointer: *X
+--   (2) (1) is a function returning int: int (*X)()
+--
+-- So you cannot construct a result just by appending strings to a result.
+--
+-- To deal with this, we split the function into two. write_pre() writes
+-- the "first half" of type declaration, and write_post() writes the
+-- "second half". For example, write_pre() writes a return type for a
+-- function and write_post() writes an parameter list.
+  local TypeWriter = {}
+  setmetatable(TypeWriter, {
+      __call = function(self,...)
+          return self:create(...);
+      end;
+  })
+  local TypeWriter_mt = {
+      __index = TypeWriter;
+  
+      __tostring = function(self)
+          return self:str();
+      end;
+  }
+  
+  function TypeWriter.init(self, ast)
+      local obj = {
+        ast = ast;
+      }
+      setmetatable(obj, TypeWriter_mt);
+  
+      return obj;
+  end
+  
+  function TypeWriter.create(self, ...)
+      return self:init(...);
+  end
+  
+  function TypeWriter:str()  -- toString 
+      self.os = StringBuilder();
+      self:write_pre(self.ast.kind);
+      self:write_name(self.ast.symbol);
+      self:write_post(self.ast.kind);
+  
+      return self.os:str();
+  end
+  
+  -- Write the "first half" of a given kind.
+  function TypeWriter:write_pre(ty)
+      local typrim = ty.prim;
+      local os = self.os;
+  
+      if typrim == Unknown or typrim == None then
+          -- nothing
+      elseif typrim == Function then
+          self:write_pre(ty.ptr);
+          return;
+      elseif typrim == Ptr or typrim == Ref then
+          self:write_pre(ty.ptr);
+  
+      -- "[]" and "()" (for function parameters) take precedence over "*",
+      -- so "int *x(int)" means "x is a function returning int *". We need
+      -- parentheses to supercede the default precedence. (e.g. we want to
+      -- emit something like "int (*x)(int)".)
+          if (ty.ptr.prim == Function or ty.ptr.prim == Array) then
+              os = os + "(";
+          end
+  
+          if (ty.prim == Ptr) then
+              os = os + "*";
+          else
+              os = os + "&";
+          end
+      elseif typrim == Array then
+          self:write_pre(ty.ptr);
+      elseif typrim == Struct then
+          self:write_class(ty.name, "struct");
+      elseif typrim == Union then  self:write_class(ty.name, "union");
+      elseif typrim == Class then  self:write_class(ty.name, "class");
+      elseif typrim == Enum then   self:write_class(ty.name, "enum");
+      elseif typrim == Void then    os = os + "void";
+      elseif typrim == Bool then    os = os + "bool";
+      elseif typrim ==  Char then    os = os + "char";
+      elseif typrim ==  Schar then   os = os + "signed char";
+      elseif typrim ==  Uchar then   os = os + "unsigned char";
+      elseif typrim ==  Short then   os = os + "short";
+      elseif typrim ==  Ushort then  os = os + "unsigned short";
+      elseif typrim ==  Int then     os = os + "int";
+      elseif typrim ==  Uint then    os = os + "unsigned int";
+      elseif typrim ==  Long then    os = os + "long";
+      elseif typrim ==  Ulong then   os = os + "unsigned long";
+      elseif typrim ==  Int64 then   os = os + "int64_t";
+      elseif typrim ==  Uint64 then  os = os + "uint64_t";
+      elseif typrim ==  Wchar then   os = os + "wchar_t";
+      elseif typrim ==  Float then   os = os + "float";
+      elseif typrim ==  Double then  os = os + "double";
+      elseif typrim ==  Ldouble then os = os + "long double";
+      end
+  
+      if band(ty.sclass, Const) ~= 0 then
+          self:write_space();
+          os = os + "const";
+      end
+  end
+  
+  -- Write the "second half" of a given kind.
+  function TypeWriter:write_post(ty)
+      local os = this.os;
+  
+      if (ty.prim == Function) then
+        os = os + "(";
+        write_params(ty.params);
+        os = os + ")";
+        if band(ty.sclass, Const) ~= 0 then
+          os = os + "const";
+        end
+  
+        return;
+      end
+  
+      if (ty.prim == Ptr or ty.prim == Ref) then
+          if (ty.ptr.prim == Function or ty.ptr.prim == Array) then
+            os = os + ")";
+          end
+          self:write_post(ty.ptr);
+          return;
+      end
+  
+      if (ty.prim == Array) then
+          os = os + "[" + ty.len + "]";
+          self:write_post(ty.ptr);
+      end
+  end
+  
+  -- Write a function or template parameter list.
+  function TypeWriter:write_params(params)
+      local tp = params;
+      local os = self.os;
+  
+      while tp ~= nil do
+          if tp ~= params then
+              os = os + ",";
+          end
+          write_pre(tp);
+          write_post(tp);
+  
+          tp = tp.next;
+      end
+  end
+  
+  function TypeWriter:write_class(name, s)
+      self.os = self.os + s + " ";
+      self:write_name(name);
+  end
+  
+  -- Write a name read by read_name().
+  function TypeWriter:write_name(name)
+      local os = self.os;
+  
+      if (not name) then
+          return;
+      end
+  
+      self:write_space();
+  
+      -- Print out namespaces or outer class names.
+      local nm = name;
+      while name.next do
+          os = os + name.str;
+          self:write_tmpl_params(name);
+          os = os + "::";
+  
+          name = name.next;
+      end
+  
+      -- Print out a regular name.
+      if (name.op:empty()) then
+          os = os + name.str;
+          self:write_tmpl_params(name);
+          
+          return;
+      end
+  
+      -- Print out ctor or dtor.
+      if (name.op == "ctor" or name.op == "dtor") then
+          os = os + name.str;
+          self:write_params(name.params);
+          os = os + "::";
+          if name.op == "dtor" then
+              os = os + "~";
+          end
+      
+          os = os + name.str;
+          return;
+      end
+  
+      -- Print out an overloaded operator.
+      if (not name.str:empty()) then
+          os = os + name.str + "::";
+      end
+      
+      os = os + "operator" + name.op;
+  end
+  
+  function TypeWriter:write_tmpl_params(name)
+      local os = self.os;
+  
+      if (not name.params) then
+          return;
+      end
+      
+      os = os + "<";
+      self:write_params(name.params);
+      os = os + ">";
+  end
+  
+  -- Writes a space if the last token does not end with a punctuation.
+  local function isalpha(c)
+    return (c >= string.byte('a') and c <= string.byte('z')) or
+      (c >= string.byte('A') and c <= string.byte('Z'))
+  end
+  
+  function TypeWriter:write_space() 
+  
+      if (not self.os:empty()) then
+          local s = self.os:str();
+          if isalpha(string.byte(s, #s)) then
+              self.os = self.os + " ";
+          end
+      end
+  end
+
 
 --[[
     The Essential Demangler class
@@ -206,8 +445,6 @@ function Demangler.init(self, str)
   
       kind = Kind();  -- A parsed mangled symbol.
       error = StringBuilder();
-
-      os = StringBuilder();
     }
     setmetatable(obj, Demangler_mt)
 
@@ -228,11 +465,13 @@ function Demangler.demangle(str)
 print("RESULT: ", res.symbol.str, res.error)
 
     -- return demangled string string
-    if not res then
-      return false, err;
+    if not dm.error:empty() then
+      return false, dm.error:str();
     end
 
-    return res;
+    local tw = TypeWriter(dm)
+
+    return tw:str();
 end
 
 function Demangler:consume(str)
@@ -876,192 +1115,8 @@ end
 
 
 
---[=[
-  This should be attached to the 'Kind' class
 
--- Converts an AST to a string.
---
--- Converting an AST representing a C++ type to a string is tricky due
--- to the bad grammar of the C++ declaration inherited from C. You have
--- to construct a string from inside to outside. For example, if a type
--- X is a pointer to a function returning int, the order you create a
--- string becomes something like this:
---
---   (1) X is a pointer: *X
---   (2) (1) is a function returning int: int (*X)()
---
--- So you cannot construct a result just by appending strings to a result.
---
--- To deal with this, we split the function into two. write_pre() writes
--- the "first half" of type declaration, and write_post() writes the
--- "second half". For example, write_pre() writes a return type for a
--- function and write_post() writes an parameter list.
-local TypeWriter = {}
 
-function TypeWriter:write(ast)
-    write_pre(type);
-    write_name(symbol);
-    write_post(type);
-    return os.str();
-end
-  
-function TypeWriter:str()  -- toString 
-  write_pre(type);
-  write_name(symbol);
-  write_post(type);
 
-  return os:str();
-end
-
--- Write the "first half" of a given kind.
-function TypeWriter:write_pre(Type &ty) {
-  switch (ty.prim) {
-  case Unknown:
-  case None:
-    break;
-  case Function:
-    write_pre(*ty.ptr);
-    return;
-  case Ptr:
-  case Ref:
-    write_pre(*ty.ptr);
-
-    -- "[]" and "()" (for function parameters) take precedence over "*",
-    -- so "int *x(int)" means "x is a function returning int *". We need
-    -- parentheses to supercede the default precedence. (e.g. we want to
-    -- emit something like "int (*x)(int)".)
-    if (ty.ptr.prim == Function || ty.ptr.prim == Array)
-      os << "(";
-
-    if (ty.prim == Ptr)
-      os << "*";
-    else
-      os << "&";
-    break;
-  case Array:
-    write_pre(*ty.ptr);
-    break;
-
-  case Struct: write_class(ty.name, "struct"); break;
-  case Union:  write_class(ty.name, "union"); break;
-  case Class:  write_class(ty.name, "class"); break;
-  case Enum:   write_class(ty.name, "enum"); break;
-  case Void:    os << "void"; break;
-  case Bool:    os << "bool"; break;
-  case Char:    os << "char"; break;
-  case Schar:   os << "signed char"; break;
-  case Uchar:   os << "unsigned char"; break;
-  case Short:   os << "short"; break;
-  case Ushort:  os << "unsigned short"; break;
-  case Int:     os << "int"; break;
-  case Uint:    os << "unsigned int"; break;
-  case Long:    os << "long"; break;
-  case Ulong:   os << "unsigned long"; break;
-  case Int64:   os << "int64_t"; break;
-  case Uint64:  os << "uint64_t"; break;
-  case Wchar:   os << "wchar_t"; break;
-  case Float:   os << "float"; break;
-  case Double:  os << "double"; break;
-  case Ldouble: os << "long double"; break;
-  }
-
-  if (ty.sclass & Const) {
-    write_space();
-    os << "const";
-  }
-}
-
--- Write the "second half" of a given kind.
-function TypeWriter:write_post(Type &ty)
-  if (ty.prim == Function) {
-    os << "(";
-    write_params(ty.params);
-    os << ")";
-    if (ty.sclass & Const)
-      os << "const";
-    return;
-  }
-
-  if (ty.prim == Ptr || ty.prim == Ref) {
-    if (ty.ptr.prim == Function || ty.ptr.prim == Array)
-      os << ")";
-    write_post(*ty.ptr);
-    return;
-  }
-
-  if (ty.prim == Array) {
-    os << "[" << ty.len << "]";
-    write_post(*ty.ptr);
-  }
-end
-
--- Write a function or template parameter list.
-function TypeWriter:write_params(Type *params) {
-  for (Type *tp = params; tp; tp = tp.next) {
-    if (tp != params)
-      os << ",";
-    write_pre(*tp);
-    write_post(*tp);
-  }
-}
-
-function TypeWriter:write_class(Name *name, String s) {
-  os << s << " ";
-  write_name(name);
-}
-
--- Write a name read by read_name().
-function TypeWriter:write_name(Name *name) {
-  if (!name)
-    return;
-  write_space();
-
-  -- Print out namespaces or outer class names.
-  for (; name.next; name = name.next) {
-    os << name.str;
-    write_tmpl_params(name);
-    os << "::";
-  }
-
-  -- Print out a regular name.
-  if (name.op:empty()) {
-    os << name.str;
-    write_tmpl_params(name);
-    return;
-  }
-
-  -- Print out ctor or dtor.
-  if (name.op == "ctor" || name.op == "dtor") {
-    os << name.str;
-    write_params(name.params);
-    os << "::";
-    if (name.op == "dtor")
-      os << "~";
-    os << name.str;
-    return;
-  }
-
-  -- Print out an overloaded operator.
-  if (!name.str:empty())
-    os << name.str << "::";
-  os << "operator" << name.op;
-}
-
-function TypeWriter:write_tmpl_params(Name *name) {
-  if (!name.params)
-    return;
-  os << "<";
-  write_params(name.params);
-  os << ">";
-}
-
--- Writes a space if the last token does not end with a punctuation.
-function TypeWriter:write_space() 
-
-  std::string s = os.str();
-  if (!s:empty() && isalpha(s.back()))
-    os << " ";
-end
---]=]
 
 return Demangler

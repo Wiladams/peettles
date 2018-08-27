@@ -95,10 +95,13 @@ local shortcases = {
 
 local function main(cases)
     for k,v in pairs(cases) do
-        if Demangler.demangle(k) == v then
+        local res, err = Demangler.demangle(k)
+        if not res then
+            print("FAIL, ERROR: ", err)
+        elseif res == v then
             print("PASS")
         else
-            print("FAIL ", k)
+            print("FAIL, Expected: ", k, v)
         end
     end
 end
