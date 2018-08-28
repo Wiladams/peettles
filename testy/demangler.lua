@@ -245,8 +245,9 @@ function TypeWriter:write_pre(ty)
       local typrim = ty.prim;
       local os = self.os;
   
+print("write_pre (1.0): ", ty.prim, PrimTy[ty.prim])
       if typrim == Unknown or typrim == None then
---print("write_pre (2.0): ", typrim)
+print("write_pre (2.0): ", typrim)
         -- nothing
       elseif typrim == Function then
           self:write_pre(ty.ptr);
@@ -324,7 +325,7 @@ function TypeWriter:write_post(ty)
       end
   
       if (ty.prim == Array) then
-          os = os + "[" + ty.len + "]";
+          os = os + "[" + tostring(ty.len) + "]";
           self:write_post(ty.ptr);
       end
 end
@@ -717,14 +718,14 @@ local operatorName = {
     ['8'] = "==";
     ['9'] = "!=";
     ['A'] = "[]";
-    ['C'] = ".";
+    ['C'] = "->";
     ['D'] = "*";
     ['E'] = "++";
     ['F'] = "--";
     ['G'] = "-";
     ['H'] = "+";
     ['I'] = "&";
-    ['J'] = ".*";
+    ['J'] = "->*";
     ['K'] = "/";
     ['L'] = "%";
     ['M'] = "<";
@@ -942,20 +943,20 @@ end
 
 -- Reads a variable kind.
 function Demangler:read_var_type(ty) 
---print("read_var_type (1): ", self.input:str())
+print("read_var_type (1): ", self.input:str())
   if (self:consume("W4")) then
     ty.prim = Enum;
     ty.name = self:read_name();
     return self;
   end
 
---print("read_var_type (2): ", self.input:str())
+print("read_var_type (2): ", self.input:str())
   if (self:consume("P6A")) then
     return self:read_func_ptr(ty);
   end
 
   local c = self.input:get();
---print("read_var_type (3): ", string.char(c))
+print("read_var_type (3): ", string.char(c))
 
   if c == string.byte('T') then
     return self:read_class(ty, Union);
@@ -975,10 +976,12 @@ function Demangler:read_var_type(ty)
     return self:read_array(ty);
   else
     self.input:unget(c);
---print("read_var_type (4): ", self.input:str())
+print("read_var_type (4): ", self.input:str())
     ty.prim = self:read_prim_type();
-    return self;
+
   end
+    
+    return self;
 end
 
 -- Reads a primitive kind.
@@ -1005,21 +1008,21 @@ local PrimitiveType = {
 }
 
 function Demangler:read_prim_type() 
---print("read_prim_type (1): ", self.input:str())
+print("read_prim_type (1): ", self.input:str())
     local orig = self.input:clone();
---print("read_prim_type (2): ", orig:str())
+print("read_prim_type (2): ", orig:str())
     local c = string.char(self.input:get());
---print("read_prim_type (3): ", c)
+print("read_prim_type (3): ", c)
     local rhs = PrimitiveType[c]
---print("read_prim_type (4): ", rhs)
+print("read_prim_type (4): ", rhs)
 
     if rhs and type(rhs) == "number" then
         return rhs;
     elseif rhs and type(rhs) == "table" then
         c = string.char(self.input:get())
---print("read_prim_type (4.2): ", c)
+print("read_prim_type (4.2): ", c)
         local primtype = rhs[c];
---print("read_prim_type (4.2.3): ", primtype)
+print("read_prim_type (4.2.3): ", primtype)
         if primtype then
             return primtype;
         end
@@ -1050,36 +1053,40 @@ function Demangler:read_pointee(ty, prim)
 end
 
 function Demangler:read_array(ty)
-  local dimension = self:read_number();
-  if (dimension <= 0) then
-    if (self.error:empty()) then
-      self.error = self.error + "invalid array dimension: " + tostring(dimension);
+print("read_array (1.0): ", self.input:str())
+    local dimension = self:read_number();
+print("read_array (1.0): ", dimension, self.input:str())
+    if (dimension <= 0) then
+        if (self.error:empty()) then
+            self.error = self.error + "invalid array dimension: " + tostring(dimension);
+        end
+        return self;
     end
+
+    local tp = ty;
+    local i = 0;
+    while i < dimension do
+        tp.prim = Array;
+        tp.len = self:read_number();
+print("read_array (3.0): ", tp.len)
+        tp.ptr = Kind();
+        tp = tp.ptr;
+        i = i + 1;
+    end
+
+    if (self:consume("$$C")) then
+        if (self:consume("B")) then
+            ty.sclass = Const;
+        elseif (self:consume("C") or self:consume("D")) then
+            ty.sclass = bor(Const, Volatile);
+        elseif (not self:consume("A") and self.error:empty()) then
+            self.error = self.error + "unkonwn storage class: " + self.input:str();
+        end
+    end
+
+    self:read_var_type(tp);
 
     return self;
-  end
-
-  local tp = ty;
-  for i = 0, dimension-1 do
-    tp.prim = Array;
-    tp.len = self:read_number();
-    tp.ptr = Kind();
-    tp = tp.ptr;
-  end
-
-  if (self:consume("$$C")) then
-    if (self:consume("B")) then
-      ty.sclass = Const;
-    elseif (self:consume("C") or self:consume("D")) then
-      ty.sclass = bor(Const, Volatile);
-    elseif (not self:consume("A") and self.error:empty()) then
-      self.error = self.error + "unkonwn storage class: " + self.input:str();
-    end
-  end
-
-  self:read_var_type(tp);
-
-  return self;
 end
 
 
