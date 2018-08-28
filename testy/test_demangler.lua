@@ -90,7 +90,7 @@ local longcases = {
 }
 
 local shortcases = {
-    {['?x@@3PEAY1NKM@5HEA'] = 'int(*x)[3500][6]'};
+    {['?x@@YAHPEAVklass@@AEAV1@@Z'] = 'int x(class klass*,class klass&)'};
 }
 
 local function main(cases)

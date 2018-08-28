@@ -524,20 +524,24 @@ function Demangler:parse()
 --print("PARSE 2: ", self.symbol.str, "REMAIN:",self.input:str(), "ERR:",self.error:str())
     -- Read a variable.
     if (self:consume("3")) then
---print("PARSE 3: ", "REMAIN: ", self.input:str())
+print("PARSE (2.1): ", self.input:str())
       self:read_var_type(self.kind);
       return self;
     end
 
     -- Read a non-member function.
+print("parse (3): ", self.input:str())
     if (self:consume("Y")) then
-      self.kind.prim = Function;
-      self.kind.calling_conv = self:read_calling_conv();
-      self.kind.ptr = Kind();
-      self.kind.ptr.sclass = self:read_storage_class_for_return();
-      self:read_var_type(self.kind.ptr);
-      self.kind.params = self:read_params();
-      return self;
+print("parse (3.1): ", self.input:str())
+        self.kind.prim = Function;
+        self.kind.calling_conv = self:read_calling_conv();
+print("parse (3.2), calling conv: ", self.kind.calling_conv, CallingConv[self.kind.calling_conv])
+        self.kind.ptr = Kind();
+        self.kind.ptr.sclass = self:read_storage_class_for_return();
+        self:read_var_type(self.kind.ptr);
+        self.kind.params = self:read_params();
+        
+        return self;
     end
 
     -- Read a member function.
@@ -569,7 +573,7 @@ end
 -- <hex-digit>            ::= [A-P]           # A = 0, B = 1, ...
 --]]
 function Demangler:read_number()
-print("read_number (1.0): ", self.input:str())
+--print("read_number (1.0): ", self.input:str())
     local neg = self:consume("?");
 
     -- the easy case, where a number is the first thing
@@ -584,7 +588,7 @@ print("read_number (1.0): ", self.input:str())
     local ret = 0;
     for i = 0, self.input:length()-1 do
         local c = self.input:peek(i);
-print("read_number (2.1): ", string.char(c))
+--print("read_number (2.1): ", string.char(c))
         if (c == string.byte('@')) then
             self.input:trim(i + 1);
 
@@ -596,7 +600,7 @@ print("read_number (2.1): ", string.char(c))
 
         if (string.byte('A') <= c and c <= string.byte('P')) then
             ret = lshift(ret, 4) + (c - string.byte('A'));
-print("read_number (2.1.1): ", ret)
+--print("read_number (2.1.1): ", ret)
         else
             break;
         end
@@ -635,7 +639,7 @@ end
 -- First 10 strings can be referenced by special names ?0, ?1, ..., ?9.
 -- Memorize it.
 function Demangler:memorize_string(s)
-    if self.num_names > MAX_NAMES then
+    if self.num_names >= MAX_NAMES then
       return self;
     end
 
@@ -645,21 +649,21 @@ function Demangler:memorize_string(s)
       end
     end
     self.num_names = self.num_names + 1;
-    self.names[self.num_names] = s;
+    self.names[self.num_names-1] = s;
 end
 
 -- Parses a name in the form of A@B@C@@ which represents C::B::A.
 function Demangler:read_name()
     local head = nil;
 
---print("read_name (1) : ", self.input:str())
+print("read_name (1) : ", self.input:str())
   while (not self:consume("@")) do
---print("read_name(2) : ", self.input:str())
+print("read_name (2) : ", self.input:str())
     local elem = Name();
 
     if (self.input:startsWithDigit()) then
       local i = self.input:peek() - string.byte('0');
-print("read_name(2.1), i: ", i)
+print("read_name(2.1), i: ", i, self.num_names)
       if (i >= self.num_names) then
         if (self.error:empty()) then
           self.error = self.error + "name reference too large: " + self.input:str();
@@ -668,6 +672,7 @@ print("read_name(2.1), i: ", i)
       end
       self.input:trim(1);
       elem.str = self.names[i];
+print("read_name (2.2): ", elem.str)
     elseif (self:consume("?$")) then
       -- Class template.
       elem.str = self:read_string(false);
@@ -680,7 +685,7 @@ print("read_name(2.1), i: ", i)
 
       -- Non-template functions or classes.
       elem.str = self:read_string(true);
---print("read_string (2.4): ", elem.str)
+print("read_name (2.4): ", elem.str)
     end
 
     elem.next = head;
@@ -946,20 +951,20 @@ end
 
 -- Reads a variable kind.
 function Demangler:read_var_type(ty) 
---print("read_var_type (1): ", self.input:str())
+print("read_var_type (1): ", self.input:str())
   if (self:consume("W4")) then
     ty.prim = Enum;
     ty.name = self:read_name();
     return self;
   end
 
---print("read_var_type (2): ", self.input:str())
+print("read_var_type (2): ", self.input:str())
   if (self:consume("P6A")) then
     return self:read_func_ptr(ty);
   end
 
   local c = self.input:get();
---print("read_var_type (3): ", string.char(c))
+print("read_var_type (3): ", string.char(c))
 
   if c == string.byte('T') then
     return self:read_class(ty, Union);
@@ -1039,26 +1044,31 @@ function Demangler:read_prim_type()
 end
 
 function Demangler:read_class(ty, prim)
+print("read_class (1.0): ", self.input:str())
     ty.prim = prim;
     ty.name = self:read_name();
-
+print("read_class (2.0): ", self.input:str())
     return self;
 end
 
 function Demangler:read_pointee(ty, prim)
+print("read_pointee (1.0): ", self.input:str())
     ty.prim = prim;
     self:expect("E"); -- if 64 bit
+print("read_pointee (2.0): ", self.input:str())
     ty.ptr = Kind();
     ty.ptr.sclass = self:read_storage_class();
+print("read_pointee (3.0): ", self.input:str())
     self:read_var_type(ty.ptr);
+print("read_pointee (4.0): ", self.input:str())
 
     return self;
 end
 
 function Demangler:read_array(ty)
-print("read_array (1.0): ", self.input:str())
+--print("read_array (1.0): ", self.input:str())
     local dimension = self:read_number();
-print("read_array (2.0): ", dimension, self.input:str())
+--print("read_array (2.0): ", dimension, self.input:str())
     if (dimension <= 0) then
         if (self.error:empty()) then
             self.error = self.error + "invalid array dimension: " + tostring(dimension);
@@ -1071,7 +1081,7 @@ print("read_array (2.0): ", dimension, self.input:str())
     while i < dimension do
         tp.prim = Array;
         tp.len = self:read_number();
-print("read_array (3.0): ", tp.len)
+--print("read_array (3.0): ", tp.len)
         tp.ptr = Kind();
         tp = tp.ptr;
         i = i + 1;
@@ -1100,12 +1110,12 @@ function Demangler:read_params()
   local tp = nil;
   local head = nil;
 
---print("read_params (1.0): ", self.input:str())
+print("read_params (1.0): ", self.input:str())
   local idx = 0;
   while (self.error:empty() and not self.input:startsWith('@') and not self.input:startsWith('Z')) do
---print("read_params (1.1): ", self.input:str())
+print("read_params (1.1): ", self.input:str())
     if (self.input:startsWithDigit()) then
---print("read_params (1.1.1): ", self.input:str())
+print("read_params (1.1.1): ", self.input:str())
       local n = self.input:peekDigit();
       if (n >= idx) then
         if (self.error:empty()) then
@@ -1126,7 +1136,7 @@ function Demangler:read_params()
       tp = tp.next;
     else
       local len = self.input:length();
---print("read_params (1.2): ", len)
+print("read_params (1.2): ", len)
       if not tp then
         tp = Kind();
         head = tp;
@@ -1136,17 +1146,15 @@ function Demangler:read_params()
       end
 
       self:read_var_type(tp);
-
+print("read_params (1.3): ", len)
       -- Single-letter types are ignored for backreferences because
       -- memorizing them doesn't save anything.
       if (idx <= 9 and len - self.input:length() > 1) then
-print("read_params (1.3): ", idx)
+print("read_params (1.3.1): ", idx)
         backref[idx] = tp;
         idx = idx + 1;
       end
 
-      --tp.next = Kind();
-      --tp = tp.next;
     end
   end
 
