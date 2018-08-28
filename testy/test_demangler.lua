@@ -90,7 +90,7 @@ local longcases = {
 }
 
 local shortcases = {
-    {['?x@@YAHPEAVklass@@AEAV1@@Z'] = 'int x(class klass*,class klass&)'};
+    {['??6@YAAEBVklass@@AEBV0@H@Z'] = 'class klass const&operator<<(class klass const&,int)'};
 }
 
 local function main(cases)
