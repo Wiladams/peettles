@@ -90,7 +90,7 @@ local longcases = {
 }
 
 local shortcases = {
-    {['?x@@3PEAY02HEA'] = 'int(*x)[3]'};
+    {['?x@@3PEAY1NKM@5HEA'] = 'int(*x)[3500][6]'};
 }
 
 local function main(cases)
@@ -109,5 +109,5 @@ local function main(cases)
     end
 end
 
-main(longcases)
---main(shortcases)
+--main(longcases)
+main(shortcases)

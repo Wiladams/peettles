@@ -245,9 +245,9 @@ function TypeWriter:write_pre(ty)
       local typrim = ty.prim;
       local os = self.os;
   
-print("write_pre (1.0): ", ty.prim, PrimTy[ty.prim])
+--print("write_pre (1.0): ", ty.prim, PrimTy[ty.prim])
       if typrim == Unknown or typrim == None then
-print("write_pre (2.0): ", typrim)
+--print("write_pre (2.0): ", typrim)
         -- nothing
       elseif typrim == Function then
           self:write_pre(ty.ptr);
@@ -569,6 +569,7 @@ end
 -- <hex-digit>            ::= [A-P]           # A = 0, B = 1, ...
 --]]
 function Demangler:read_number()
+print("read_number (1.0): ", self.input:str())
     local neg = self:consume("?");
 
     -- the easy case, where a number is the first thing
@@ -581,8 +582,9 @@ function Demangler:read_number()
     end
 
     local ret = 0;
-    for i = 0, self.input:length() do
-        local c = self.input:peek();
+    for i = 0, self.input:length()-1 do
+        local c = self.input:peek(i);
+print("read_number (2.1): ", string.char(c))
         if (c == string.byte('@')) then
             self.input:trim(i + 1);
 
@@ -594,6 +596,7 @@ function Demangler:read_number()
 
         if (string.byte('A') <= c and c <= string.byte('P')) then
             ret = lshift(ret, 4) + (c - string.byte('A'));
+print("read_number (2.1.1): ", ret)
         else
             break;
         end
@@ -943,20 +946,20 @@ end
 
 -- Reads a variable kind.
 function Demangler:read_var_type(ty) 
-print("read_var_type (1): ", self.input:str())
+--print("read_var_type (1): ", self.input:str())
   if (self:consume("W4")) then
     ty.prim = Enum;
     ty.name = self:read_name();
     return self;
   end
 
-print("read_var_type (2): ", self.input:str())
+--print("read_var_type (2): ", self.input:str())
   if (self:consume("P6A")) then
     return self:read_func_ptr(ty);
   end
 
   local c = self.input:get();
-print("read_var_type (3): ", string.char(c))
+--print("read_var_type (3): ", string.char(c))
 
   if c == string.byte('T') then
     return self:read_class(ty, Union);
@@ -976,7 +979,7 @@ print("read_var_type (3): ", string.char(c))
     return self:read_array(ty);
   else
     self.input:unget(c);
-print("read_var_type (4): ", self.input:str())
+--print("read_var_type (4): ", self.input:str())
     ty.prim = self:read_prim_type();
 
   end
@@ -1008,21 +1011,21 @@ local PrimitiveType = {
 }
 
 function Demangler:read_prim_type() 
-print("read_prim_type (1): ", self.input:str())
+--print("read_prim_type (1): ", self.input:str())
     local orig = self.input:clone();
-print("read_prim_type (2): ", orig:str())
+--print("read_prim_type (2): ", orig:str())
     local c = string.char(self.input:get());
-print("read_prim_type (3): ", c)
+--print("read_prim_type (3): ", c)
     local rhs = PrimitiveType[c]
-print("read_prim_type (4): ", rhs)
+--print("read_prim_type (4): ", rhs)
 
     if rhs and type(rhs) == "number" then
         return rhs;
     elseif rhs and type(rhs) == "table" then
         c = string.char(self.input:get())
-print("read_prim_type (4.2): ", c)
+--print("read_prim_type (4.2): ", c)
         local primtype = rhs[c];
-print("read_prim_type (4.2.3): ", primtype)
+--print("read_prim_type (4.2.3): ", primtype)
         if primtype then
             return primtype;
         end
@@ -1055,7 +1058,7 @@ end
 function Demangler:read_array(ty)
 print("read_array (1.0): ", self.input:str())
     local dimension = self:read_number();
-print("read_array (1.0): ", dimension, self.input:str())
+print("read_array (2.0): ", dimension, self.input:str())
     if (dimension <= 0) then
         if (self.error:empty()) then
             self.error = self.error + "invalid array dimension: " + tostring(dimension);
