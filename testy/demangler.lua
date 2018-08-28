@@ -33,12 +33,12 @@ enum.inject(StorageClass, ns)
 -- Calling conventions
 -- uint8_t
 local CallingConv = enum  {
-    Cdecl = 1,
-    Pascal =2,
-    Thiscall=3,
-    Stdcall=4,
-    Fastcall=5,
-    Regcall=6,
+    Cdecl = 0,
+    Pascal =1,
+    Thiscall=2,
+    Stdcall=3,
+    Fastcall=4,
+    Regcall=5,
 };
 enum.inject(CallingConv, ns)
 
@@ -246,7 +246,8 @@ function TypeWriter:write_pre(ty)
       local os = self.os;
   
       if typrim == Unknown or typrim == None then
-          -- nothing
+--print("write_pre (2.0): ", typrim)
+        -- nothing
       elseif typrim == Function then
           self:write_pre(ty.ptr);
           return;
@@ -301,8 +302,9 @@ end
   -- Write the "second half" of a given kind.
 function TypeWriter:write_post(ty)
       local os = self.os;
-  
+  --print("write_post (1.0): ", ty.prim)
       if (ty.prim == Function) then
+        --print("write_post (1.1): ", ty.params)
         os = os + "(";
         self:write_params(ty.params);
         os = os + ")";
@@ -417,9 +419,10 @@ local function isalpha(c)
 end
   
 function TypeWriter:write_space() 
-  
+--print(string.format("write_space (1.0): '%s'", self.os:str()))
       if (not self.os:empty()) then
           local s = self.os:str();
+--print(string.format("write_space (2.0): '%s'", s))
           if isalpha(string.byte(s, #s)) then
               self.os = self.os + " ";
           end
@@ -469,8 +472,6 @@ function Demangler.demangle(str)
 
     -- do parsing
     local res = dm:parse();
-
-print("RESULT: ", res.symbol.str, res.error)
 
     -- return demangled string string
     if not dm.error:empty() then
@@ -647,9 +648,9 @@ end
 function Demangler:read_name()
     local head = nil;
 
-print("read_name (1) : ", self.input:str())
+--print("read_name (1) : ", self.input:str())
   while (not self:consume("@")) do
-print("read_name(2) : ", self.input:str())
+--print("read_name(2) : ", self.input:str())
     local elem = Name();
 
     if (self.input:startsWithDigit()) then
@@ -675,7 +676,7 @@ print("read_name(2.1), i: ", i)
 
       -- Non-template functions or classes.
       elem.str = self:read_string(true);
-      print("read_string (2.4): ", elem.str)
+--print("read_string (2.4): ", elem.str)
     end
 
     elem.next = head;
@@ -795,10 +796,10 @@ function Demangler:read_operator(name)
 end
 
 function Demangler:read_func_class()
-    print("read_func_class: ", self.input:str())
+--print("read_func_class: ", self.input:str())
 
     local c = self.input:get();
-print("read_func_class (2.0): ",string.char(c))
+--print("read_func_class (2.0): ",string.char(c))
 
     if c == string.byte('A') then return Private;
     elseif c == string.byte('B') then return bor(Private, FFar);
@@ -832,15 +833,16 @@ end
 
 
 local FuncAccessClass = {
-  A = Cdecl;
-  B = Cdecl;
-  C = Pascal;
-  E = Thiscall;
-  G = Stdcall;
-  I = Fastcall;
+    A = Cdecl;
+    B = Cdecl;
+    C = Pascal;
+    E = Thiscall;
+    G = Stdcall;
+    I = Fastcall;
 }
 
 function Demangler:read_func_access_class()
+--print("read_func_access_class (1.0): ", self.input:str())
     local c = string.char(self.input:get());
     local rhs = FuncAccessClass[c]
     if rhs then
@@ -853,11 +855,18 @@ function Demangler:read_func_access_class()
 end
 
 function  Demangler:read_calling_conv() 
-
+--print("read_calling_conv (1.0): ", self.input:str())
     local orig = self.input:clone();
 
-    local c = self.input:get();
+    --local c = self.input:get();
 
+    local c = string.char(self.input:get());
+    local rhs = FuncAccessClass[c]
+    if rhs then
+      return rhs;
+    end
+
+--[[
     if c == string.byte('A') then return Cdecl;
     elseif c == string.byte('B') then return Cdecl;
     elseif c == string.byte('C') then return Pascal;
@@ -865,6 +874,7 @@ function  Demangler:read_calling_conv()
     elseif c == string.byte('G') then return Stdcall;
     elseif c == string.byte('I') then return Fastcall;
     end
+--]]
 
     if (self.error:empty()) then
       self.error = self.error + "unknown calling convention: " + orig:str();
@@ -876,13 +886,15 @@ end
 -- <return-type> ::= <type>
 --               ::= @ # structors (they have no declared return type)
 function Demangler:read_func_return_type(ty)
-  if (self:consume("@")) then
-    ty.prim = None;
-  else
-    self:read_var_type(ty);
-  end
+--print("read_func_return_type (1.0): ", self.input:str())
+    if (self:consume("@")) then
+        ty.prim = None;
+    else
+--print("read_func_return_type (1.1): ")
+        self:read_var_type(ty);
+    end
 
-  return self;
+    return self;
 end
 
 function Demangler:read_storage_class()
@@ -903,9 +915,11 @@ function Demangler:read_storage_class()
 end
 
 function Demangler:read_storage_class_for_return()
+--print("read_storage_class_for_return (1.0): ", self.input:str())
     if (not self:consume("?")) then
       return 0;
     end
+--print("read_storage_class_for_return (2.0): ", self.input:str())
 
     local orig = input:clone();
 
@@ -928,20 +942,20 @@ end
 
 -- Reads a variable kind.
 function Demangler:read_var_type(ty) 
-  --print("read_var_type (1): ", ty)
+--print("read_var_type (1): ", self.input:str())
   if (self:consume("W4")) then
     ty.prim = Enum;
     ty.name = self:read_name();
     return self;
   end
 
-  --print("read_var_type (2): ", "REMAIN: ", self.input:str())
+--print("read_var_type (2): ", self.input:str())
   if (self:consume("P6A")) then
     return self:read_func_ptr(ty);
   end
 
   local c = self.input:get();
-  --print("read_var_type (3): ", string.char(c))
+--print("read_var_type (3): ", string.char(c))
 
   if c == string.byte('T') then
     return self:read_class(ty, Union);
@@ -1003,7 +1017,9 @@ function Demangler:read_prim_type()
         return rhs;
     elseif rhs and type(rhs) == "table" then
         c = string.char(self.input:get())
+--print("read_prim_type (4.2): ", c)
         local primtype = rhs[c];
+--print("read_prim_type (4.2.3): ", primtype)
         if primtype then
             return primtype;
         end
@@ -1071,13 +1087,15 @@ end
 function Demangler:read_params()
   -- Within the same parameter list, you can backreference the first 10 types.
   local backref = {};
+  local tp = nil;
+  local head = nil;
+
+--print("read_params (1.0): ", self.input:str())
   local idx = 0;
-
-  local head = Kind();
-  local tp = head;
-
   while (self.error:empty() and not self.input:startsWith('@') and not self.input:startsWith('Z')) do
+--print("read_params (1.1): ", self.input:str())
     if (self.input:startsWithDigit()) then
+--print("read_params (1.1.1): ", self.input:str())
       local n = self.input:peekDigit();
       if (n >= idx) then
         if (self.error:empty()) then
@@ -1088,34 +1106,41 @@ function Demangler:read_params()
 
       self.input:trim(1);
 
+      if not tp then
+        tp = Kind();
+        head = tp;
+      end
+
       tp = assignKind(tp, backref[n]);
       tp.next = Kind();
       tp = tp.next;
     else
       local len = self.input:length();
+--print("read_params (1.2): ", len)
+      if not tp then
+        tp = Kind();
+        head = tp;
+      else
+        tp.next = Kind();
+        tp = tp.next;
+      end
 
-      tp = Kind();
       self:read_var_type(tp);
 
       -- Single-letter types are ignored for backreferences because
       -- memorizing them doesn't save anything.
       if (idx <= 9 and len - self.input:length() > 1) then
+print("read_params (1.3): ", idx)
         backref[idx] = tp;
         idx = idx + 1;
       end
 
-      tp = tp.next;
+      --tp.next = Kind();
+      --tp = tp.next;
     end
   end
 
   return head;
 end
-
-
-
-
-
-
-
 
 return Demangler

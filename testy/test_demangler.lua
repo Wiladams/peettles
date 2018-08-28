@@ -90,23 +90,26 @@ local longcases = {
 }
 
 local shortcases = {
-    ['?x@@3HA'] = 'int x';
-    ['??7klass@@QEAA_NXZ'] = 'bool klass::operator!(void)';
+    ['??_0klass@@QEAAHH@Z'] = 'int klass::operator/=(int)';
+    ['??_1klass@@QEAAHH@Z'] = 'int klass::operator%=(int)';
+    ['??_2klass@@QEAAHH@Z'] = 'int klass::operator>>=(int)';
+    ['??_3klass@@QEAAHH@Z'] = 'int klass::operator<<=(int)';
+    ['??_6klass@@QEAAHH@Z'] = 'int klass::operator^=(int)';
 }
 
 local function main(cases)
     for k,v in pairs(cases) do
         local res, err = Demangler.demangle(k)
-        print("RES: ", res)
+        --print("RES: ", res)
         if not res then
             print("FAIL, ERROR: ", err)
         elseif res == v then
             print("PASS")
         else
-            print("FAIL, Expected: ", k, v)
+            print("FAIL, Expected: ", k, v, res)
         end
     end
 end
 
---main(longcases)
-main(shortcases)
+main(longcases)
+--main(shortcases)
