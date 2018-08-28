@@ -114,8 +114,8 @@ struct Name {
 --]]
 local function Name (params)
     params = params or {}
-    params.str = params.str;
-    params.op = params.op;
+    params.str = params.str or "";
+    params.op = params.op or "";
     params.params = params.params;
     params.next = params.next;
 
@@ -197,44 +197,51 @@ end
 -- the "first half" of type declaration, and write_post() writes the
 -- "second half". For example, write_pre() writes a return type for a
 -- function and write_post() writes an parameter list.
-  local TypeWriter = {}
-  setmetatable(TypeWriter, {
+local function strempty(str)
+    if not str then return true end
+    if #str == 0 then return true end
+        
+    return false;
+end
+
+local TypeWriter = {}
+setmetatable(TypeWriter, {
       __call = function(self,...)
           return self:create(...);
       end;
-  })
-  local TypeWriter_mt = {
+})
+local TypeWriter_mt = {
       __index = TypeWriter;
   
       __tostring = function(self)
           return self:str();
       end;
-  }
+}
   
-  function TypeWriter.init(self, ast)
+function TypeWriter.init(self, ast)
       local obj = {
         ast = ast;
       }
       setmetatable(obj, TypeWriter_mt);
   
       return obj;
-  end
+end
   
-  function TypeWriter.create(self, ...)
+function TypeWriter.create(self, ...)
       return self:init(...);
-  end
+end
   
-  function TypeWriter:str()  -- toString 
+function TypeWriter:str()  -- toString 
       self.os = StringBuilder();
       self:write_pre(self.ast.kind);
       self:write_name(self.ast.symbol);
       self:write_post(self.ast.kind);
   
       return self.os:str();
-  end
+end
   
   -- Write the "first half" of a given kind.
-  function TypeWriter:write_pre(ty)
+function TypeWriter:write_pre(ty)
       local typrim = ty.prim;
       local os = self.os;
   
@@ -289,15 +296,15 @@ end
           self:write_space();
           os = os + "const";
       end
-  end
+end
   
   -- Write the "second half" of a given kind.
-  function TypeWriter:write_post(ty)
-      local os = this.os;
+function TypeWriter:write_post(ty)
+      local os = self.os;
   
       if (ty.prim == Function) then
         os = os + "(";
-        write_params(ty.params);
+        self:write_params(ty.params);
         os = os + ")";
         if band(ty.sclass, Const) ~= 0 then
           os = os + "const";
@@ -318,10 +325,10 @@ end
           os = os + "[" + ty.len + "]";
           self:write_post(ty.ptr);
       end
-  end
+end
   
   -- Write a function or template parameter list.
-  function TypeWriter:write_params(params)
+function TypeWriter:write_params(params)
       local tp = params;
       local os = self.os;
   
@@ -329,20 +336,21 @@ end
           if tp ~= params then
               os = os + ",";
           end
-          write_pre(tp);
-          write_post(tp);
+          self:write_pre(tp);
+          self:write_post(tp);
   
           tp = tp.next;
       end
-  end
+end
   
-  function TypeWriter:write_class(name, s)
+function TypeWriter:write_class(name, s)
       self.os = self.os + s + " ";
       self:write_name(name);
-  end
+end
   
-  -- Write a name read by read_name().
-  function TypeWriter:write_name(name)
+
+-- Write a name read by read_name().
+function TypeWriter:write_name(name)
       local os = self.os;
   
       if (not name) then
@@ -362,7 +370,7 @@ end
       end
   
       -- Print out a regular name.
-      if (name.op:empty()) then
+      if (strempty(name.op)) then
           os = os + name.str;
           self:write_tmpl_params(name);
           
@@ -383,14 +391,14 @@ end
       end
   
       -- Print out an overloaded operator.
-      if (not name.str:empty()) then
+      if (not strempty(name.str)) then
           os = os + name.str + "::";
       end
       
       os = os + "operator" + name.op;
-  end
+end
   
-  function TypeWriter:write_tmpl_params(name)
+function TypeWriter:write_tmpl_params(name)
       local os = self.os;
   
       if (not name.params) then
@@ -400,15 +408,15 @@ end
       os = os + "<";
       self:write_params(name.params);
       os = os + ">";
-  end
+end
   
-  -- Writes a space if the last token does not end with a punctuation.
-  local function isalpha(c)
+-- Writes a space if the last token does not end with a punctuation.
+local function isalpha(c)
     return (c >= string.byte('a') and c <= string.byte('z')) or
       (c >= string.byte('A') and c <= string.byte('Z'))
-  end
+end
   
-  function TypeWriter:write_space() 
+function TypeWriter:write_space() 
   
       if (not self.os:empty()) then
           local s = self.os:str();
@@ -416,7 +424,7 @@ end
               self.os = self.os + " ";
           end
       end
-  end
+end
 
 
 --[[
@@ -505,16 +513,16 @@ function Demangler:parse()
         self.kind.prim = Unknown;
     end
 
-print("PARSE 1: ", self.input:str())
+--print("PARSE 1: ", self.input:str())
 
     -- What follows is a main symbol name. This may include
     -- namespaces or class names.
     self.symbol = self:read_name();
 
-print("PARSE 2: ", self.symbol.str, "REMAIN:",self.input:str(), "ERR:",self.error:str())
+--print("PARSE 2: ", self.symbol.str, "REMAIN:",self.input:str(), "ERR:",self.error:str())
     -- Read a variable.
     if (self:consume("3")) then
-print("PARSE 3: ", "REMAIN: ", self.input:str())
+--print("PARSE 3: ", "REMAIN: ", self.input:str())
       self:read_var_type(self.kind);
       return self;
     end
@@ -757,38 +765,26 @@ function Demangler:read_operator_name()
     return "";
   end
 
-  local achar = self.input:get()
+  local achar = string.char(self.input:get())
   local rhs1 = operatorName[achar]
 
-  if not rhs1 then
-    -- didn't find the operator in the table
-    return returnError();
-  end
-
-  -- found a straight translation
-  if type(rhs1) ~= "table" then
-    return rhs1;
-  end
-
-  -- right hand side is a table, so get another
-  -- character to lookup
-  achar = self.input:get();
-  local rhs2 = rhs1[achar]
-  
-  if not rhs2 then
-    return returnError();
-  end
-
-  -- again, got a rhs, so return it
-  if rhs2 == '_' then
-    if self:consume("L") then
-      return " co_await";
+  if rhs1 then
+    if type(rhs1) == "string" then 
+        return rhs1;
+    elseif type(rhs1) == "table" then
+        achar = string.char(self.input:get())
+        local rhs2 = rhs1[achar];
+        if rhs2 then
+            return rhs2;
+        end
     end
-
-    return rhs2;
   end
 
-  return returnError()
+  if (self.error:empty()) then
+    self.error = self.error + "unknown operator name: " + orig:str();
+  end
+
+  return "";
 end
 
 function Demangler:read_operator(name)
@@ -799,7 +795,10 @@ function Demangler:read_operator(name)
 end
 
 function Demangler:read_func_class()
+    print("read_func_class: ", self.input:str())
+
     local c = self.input:get();
+print("read_func_class (2.0): ",string.char(c))
 
     if c == string.byte('A') then return Private;
     elseif c == string.byte('B') then return bor(Private, FFar);
@@ -842,7 +841,7 @@ local FuncAccessClass = {
 }
 
 function Demangler:read_func_access_class()
-    local c = self.input:get();
+    local c = string.char(self.input:get());
     local rhs = FuncAccessClass[c]
     if rhs then
       return rhs;

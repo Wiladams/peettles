@@ -91,11 +91,13 @@ local longcases = {
 
 local shortcases = {
     ['?x@@3HA'] = 'int x';
+    ['??7klass@@QEAA_NXZ'] = 'bool klass::operator!(void)';
 }
 
 local function main(cases)
     for k,v in pairs(cases) do
         local res, err = Demangler.demangle(k)
+        print("RES: ", res)
         if not res then
             print("FAIL, ERROR: ", err)
         elseif res == v then
