@@ -90,22 +90,22 @@ local longcases = {
 }
 
 local shortcases = {
-    {['??6@YAAEBVklass@@AEBV0@H@Z'] = 'class klass const&operator<<(class klass const&,int)'};
+    {['?x@@3P6AHP6AHM@Z0@ZEA'] = 'int(*x)(int(*)(float),int(*)(float))'};
 }
 
 local function main(cases)
     for idx, testcase in ipairs(cases) do
-    for k,v in pairs(testcase) do
-        local res, err = Demangler.demangle(k)
+        for k,v in pairs(testcase) do
+            local res, err = Demangler.demangle(k)
         --print("RES: ", res)
-        if not res then
-            print("FAIL, ERROR: ", err)
-        elseif res == v then
-            print("PASS")
-        else
-            print("FAIL", k, v, res)
+            if not res then
+                print("FAIL, ERROR: ", err)
+            elseif res == v then
+                print("PASS")
+            else
+                print("FAIL", k, v, res)
+            end
         end
-    end
     end
 end
 
