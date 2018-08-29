@@ -150,12 +150,15 @@ struct Type {
 };
 --]]
 local function assignKind(lhs, rhs)
+--print("assignKind (1.0) : ", rhs.prim, PrimTy[rhs.prim], rhs.params)
     lhs.prim = rhs.prim or 0;
     lhs.ptr = rhs.ptr;
+
     lhs.sclass = rhs.sclass or 0;
     lhs.calling_conv = rhs.calling_conv or 0;
     lhs.func_class = rhs.func_class or 0;
     lhs.len = rhs.len or 0;
+
     lhs.name = rhs.name;
     lhs.params = rhs.params;
     lhs.next = rhs.next;
@@ -245,9 +248,9 @@ function TypeWriter:write_pre(ty)
       local typrim = ty.prim;
       local os = self.os;
   
---print("write_pre (1.0): ", ty.prim, PrimTy[ty.prim])
+print("write_pre (1.0): ", ty.prim, PrimTy[ty.prim])
       if typrim == Unknown or typrim == None then
---print("write_pre (2.0): ", typrim)
+print("write_pre (1.1): ", typrim)
         -- nothing
       elseif typrim == Function then
           self:write_pre(ty.ptr);
@@ -332,6 +335,7 @@ end
   
   -- Write a function or template parameter list.
 function TypeWriter:write_params(params)
+print("write_params (1.0): ", params)
       local tp = params;
       local os = self.os;
   
@@ -960,7 +964,9 @@ print("read_var_type (1): ", self.input:str())
 --print("read_var_type (2): ", self.input:str())
   if (self:consume("P6A")) then
 print("read_var_type (2.1)")
-    return self:read_func_ptr(ty);
+    self:read_func_ptr(ty);
+print("read_var_type (2.2)")
+    return
   end
 
   local c = self.input:get();
@@ -1119,6 +1125,7 @@ print("read_params (1.1.1): ", self.input:str())
       local n = self.input:peekDigit();
 print("read_params (1.1.2): ", n, self.input:str())
       if (n >= idx) then
+print("read_params (1.1.2.1")
         if (self.error:empty()) then
           self.error = self.error + "invalid backreference: " + self.input:str();
         end
