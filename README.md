@@ -7,17 +7,19 @@ Pronunciation: P-E Tools, or 'pea tools'
 
 In general, parsing, extracting, reconstructing and generally handling Portable Executable files
 
-*Loading a PE file*
+Some things of note
 
-1. Extract from the header the entry point, heap and stack sizes. 
-2. Iterate through each section and copy it from the file into virtual memory (although not required, it is good to clear the difference between the section size in memory and in the file to 0). 
-3. Find the address of the entry point by finding the correct entry in the symbol table. 
-4. Create a new thread at that address and begin executing! 
-To load a PE file that requires a dynamic DLL you can do the same, but check the Import Table (referred to by the data directory) to find what symbols and PE files are required, the Export Table (also referred to by the data directory) inside of that PE file to see where those symbols are and match them up once you've loaded that PE's sections into memory (and relocated them!) And lastly, beware that you'll have to recursively resolve each DLL's Import Tables as well, and some DLLs can use tricks to reference a symbol in the DLL loading it so make sure you don't get your loader stuck in a loop! Registering symbols loaded and making them global might be a good solution. 
-It may also be a good idea to check the Machine and Magic fields for validity, not just the PE signature. This way your loader won't try loading a 64 bit binary into 32 bit mode (this would be certain to cause an exception). 
-64 bit PE
-64 bit PE's are extremely similar to normal PE's, but the machine type, if AMD64, is 0x8664, not 0x14c. This field is directly after the PE signature. The magic number also changes from 0x10b to 0x20b. The magic field is at the beginning of the optional header. 
-Also several fields have been expanded to 64 bits (but not RVAs or offsets). An example of these is the Preffered Base Address 
+libparser.lua - parse .lib files
+
+mmap_win32.lua - convenient memory map file object
+
+octetstream.lua - feeds up a constant stream of 8-bit bytes.  Has rudimentary seeking, and peeking
+
+parse_COFF.lua - parse COFF files (typically .obj) in isolation, or as part of peparser.lua
+
+parse_pdb.lua - parse .pdb files (debug)
+
+peparser.lua - parses a PE file, creating a lua table representation along the way
 
 
 Microsoft Documentation
@@ -57,4 +59,18 @@ Tools
 * http://www.capstone-engine.org/
 * Very Complete disassembler: https://github.com/zyantific/zydis
 
+
+For the future
+
+*Loading a PE file*
+
+1. Extract from the header the entry point, heap and stack sizes. 
+2. Iterate through each section and copy it from the file into virtual memory (although not required, it is good to clear the difference between the section size in memory and in the file to 0). 
+3. Find the address of the entry point by finding the correct entry in the symbol table. 
+4. Create a new thread at that address and begin executing! 
+To load a PE file that requires a dynamic DLL you can do the same, but check the Import Table (referred to by the data directory) to find what symbols and PE files are required, the Export Table (also referred to by the data directory) inside of that PE file to see where those symbols are and match them up once you've loaded that PE's sections into memory (and relocated them!) And lastly, beware that you'll have to recursively resolve each DLL's Import Tables as well, and some DLLs can use tricks to reference a symbol in the DLL loading it so make sure you don't get your loader stuck in a loop! Registering symbols loaded and making them global might be a good solution. 
+It may also be a good idea to check the Machine and Magic fields for validity, not just the PE signature. This way your loader won't try loading a 64 bit binary into 32 bit mode (this would be certain to cause an exception). 
+64 bit PE
+64 bit PE's are extremely similar to normal PE's, but the machine type, if AMD64, is 0x8664, not 0x14c. This field is directly after the PE signature. The magic number also changes from 0x10b to 0x20b. The magic field is at the beginning of the optional header. 
+Also several fields have been expanded to 64 bits (but not RVAs or offsets). An example of these is the Preffered Base Address 
 
