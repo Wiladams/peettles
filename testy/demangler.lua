@@ -248,9 +248,9 @@ function TypeWriter:write_pre(ty)
       local typrim = ty.prim;
       local os = self.os;
   
-print("write_pre (1.0): ", ty.prim, PrimTy[ty.prim])
+--print("write_pre (1.0): ", ty.prim, PrimTy[ty.prim])
       if typrim == Unknown or typrim == None then
-print("write_pre (1.1): ", typrim)
+--print("write_pre (1.1): ", typrim)
         -- nothing
       elseif typrim == Function then
           self:write_pre(ty.ptr);
@@ -306,7 +306,7 @@ end
   -- Write the "second half" of a given kind.
 function TypeWriter:write_post(ty)
       local os = self.os;
-  --print("write_post (1.0): ", ty.prim)
+  print("write_post (1.0): ", ty.prim, ty.sclass)
       if (ty.prim == Function) then
         --print("write_post (1.1): ", ty.params)
         os = os + "(";
@@ -335,18 +335,25 @@ end
   
   -- Write a function or template parameter list.
 function TypeWriter:write_params(params)
-print("write_params (1.0): ", params)
-      local tp = params;
-      local os = self.os;
+--print("write_params (1.0): ", params)
+    if not params then return end
+
+    local tp = params;
+    local os = self.os;
   
-      while tp ~= nil do
-          if tp ~= params then
-              os = os + ",";
+      for idx, tp in ipairs(params) do
+      --while tp ~= nil do
+          --if tp ~= params then
+          --    os = os + ",";
+          --end
+          if idx > 1 then
+            os = os + ",";
           end
+
           self:write_pre(tp);
           self:write_post(tp);
   
-          tp = tp.next;
+          --tp = tp.next;
       end
 end
   
@@ -529,7 +536,7 @@ function Demangler:parse()
 --print("PARSE 2: ", self.symbol.str, "REMAIN:",self.input:str(), "ERR:",self.error:str())
     -- Read a variable.
     if (self:consume("3")) then
-print("PARSE (2.1): ", self.input:str())
+--print("PARSE (2.1): ", self.input:str())
       self:read_var_type(self.kind);
       return self;
     end
@@ -704,14 +711,14 @@ function Demangler:read_name()
 end
 
 function Demangler:read_func_ptr(ty)
-print("read_func_ptr (1.0): ", self.input:str())
+--print("read_func_ptr (1.0): ", self.input:str())
   local tp = Kind();
   tp.prim = Function;
   tp.ptr = Kind();
   self:read_var_type(tp.ptr);
-print("read_func_ptr (2.0): ", self.input:str())
+--print("read_func_ptr (2.0): ", self.input:str())
   tp.params = self:read_params();
-print("read_func_ptr (3.0): ", self.input:str())
+--print("read_func_ptr (3.0): ", self.input:str())
   ty.prim = Ptr;
   ty.ptr = tp;
 
@@ -912,15 +919,15 @@ end
 function Demangler:read_storage_class()
     local c = self.input:get();
 
-  if c == string.byte('A') then return 0;
-  elseif c == string.byte('B') then return Const;
-  elseif c == string.byte('C') then return Volatile;
-  elseif c == string.byte('D') then return bor(Const, Volatile);
-  elseif c == string.byte('E') then return Far;
-  elseif c == string.byte('F') then return bor(Const, Far);
-  elseif c == string.byte('G') then return bor(Volatile, Far);
-  elseif c == string.byte('H') then return bor(Const, Volatile, Far);
-  end
+    if c == string.byte('A') then return 0;
+    elseif c == string.byte('B') then return Const;
+    elseif c == string.byte('C') then return Volatile;
+    elseif c == string.byte('D') then return bor(Const, Volatile);
+    elseif c == string.byte('E') then return Far;
+    elseif c == string.byte('F') then return bor(Const, Far);
+    elseif c == string.byte('G') then return bor(Volatile, Far);
+    elseif c == string.byte('H') then return bor(Const, Volatile, Far);
+    end
 
     self.input:unget(c);
     return 0;
@@ -954,7 +961,7 @@ end
 
 -- Reads a variable kind.
 function Demangler:read_var_type(ty) 
-print("read_var_type (1): ", self.input:str())
+--print("read_var_type (1): ", self.input:str())
   if (self:consume("W4")) then
     ty.prim = Enum;
     ty.name = self:read_name();
@@ -963,9 +970,9 @@ print("read_var_type (1): ", self.input:str())
 --print("read_var_type (2)")
 --print("read_var_type (2): ", self.input:str())
   if (self:consume("P6A")) then
-print("read_var_type (2.1)")
+--print("read_var_type (2.1)")
     self:read_func_ptr(ty);
-print("read_var_type (2.2)")
+--print("read_var_type (2.2)")
     return
   end
 
@@ -992,7 +999,7 @@ print("read_var_type (2.2)")
     self.input:unget(c);
 --print("read_var_type (3.8): ", self.input:str())
     ty.prim = self:read_prim_type();
-
+--print("read_var_type (3.9): ", ty.prim, PrimTy[ty.prim], self.input:str())
   end
     
     return self;
@@ -1115,17 +1122,18 @@ function Demangler:read_params()
   local backref = {};
   local tp = nil;
   local head = nil;
+  local head = {}
 
-print("read_params (1.0): ", self.input:str())
+--print("read_params (1.0): ", self.input:str())
   local idx = 0;
   while (self.error:empty() and not self.input:startsWith('@') and not self.input:startsWith('Z')) do
-print("read_params (1.1): ", self.input:str())
+--print("read_params (1.1): ", self.input:str())
     if (self.input:startsWithDigit()) then
-print("read_params (1.1.1): ", self.input:str())
+--print("read_params (1.1.1): ", self.input:str())
       local n = self.input:peekDigit();
-print("read_params (1.1.2): ", n, self.input:str())
+--print("read_params (1.1.2): ", n, idx, self.input:str())
       if (n >= idx) then
-print("read_params (1.1.2.1")
+--print("read_params (1.1.2.1")
         if (self.error:empty()) then
           self.error = self.error + "invalid backreference: " + self.input:str();
         end
@@ -1133,36 +1141,45 @@ print("read_params (1.1.2.1")
       end
 
       self.input:trim(1);
-
+--[[
       if not tp then
         tp = Kind();
         head = tp;
       end
-
+--]]
+      tp = Kind();
       tp = assignKind(tp, backref[n]);
-      tp.next = Kind();
-      tp = tp.next;
+      table.insert(head, tp);
+      --tp.next = Kind();
+      --tp = tp.next;
+
     else
       local len = self.input:length();
-print("read_params (1.2): ", len)
+--print("read_params (1.2): ", len)
+--[[
       if not tp then
+print("read_params (1.2.1): ")
         tp = Kind();
         head = tp;
       else
+print("read_params (1.2.2):")
         tp.next = Kind();
         tp = tp.next;
       end
-
+--]]
+      tp = Kind();
+      table.insert(head, tp)
       self:read_var_type(tp);
-print("read_params (1.3): ", tp.prim)
+--print("read_params (1.3): ", tp.prim, PrimTy[tp.prim])
       -- Single-letter types are ignored for backreferences because
       -- memorizing them doesn't save anything.
       if (idx <= 9 and len - self.input:length() > 1) then
-print("read_params (1.3.1): ", idx)
+--print("read_params (1.3.1): ", idx)
         backref[idx] = tp;
         idx = idx + 1;
       end
 
+      --tp = tp.next;
     end
   end
 

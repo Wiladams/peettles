@@ -109,5 +109,5 @@ local function main(cases)
     end
 end
 
---main(longcases)
-main(shortcases)
+main(longcases)
+--main(shortcases)
