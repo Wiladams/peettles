@@ -97,7 +97,7 @@ local function main(cases)
     for idx, testcase in ipairs(cases) do
         for k,v in pairs(testcase) do
             local res, err = Demangler.demangle(k)
-        --print("RES: ", res)
+
             if not res then
                 print("FAIL, ERROR: ", err)
             elseif res == v then
@@ -109,5 +109,5 @@ local function main(cases)
     end
 end
 
---main(longcases)
-main(shortcases)
+main(longcases)
+--main(shortcases)
