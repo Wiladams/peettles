@@ -306,7 +306,7 @@ end
   -- Write the "second half" of a given kind.
 function TypeWriter:write_post(ty)
       local os = self.os;
-  print("write_post (1.0): ", ty.prim, ty.sclass)
+print("write_post (1.0): ", ty.prim, PrimTy[ty.prim], ty.sclass)
       if (ty.prim == Function) then
         --print("write_post (1.1): ", ty.params)
         os = os + "(";
@@ -864,16 +864,14 @@ end
 
 
 local FuncAccessClass = {
-    A = Cdecl;
-    B = Cdecl;
-    C = Pascal;
-    E = Thiscall;
-    G = Stdcall;
-    I = Fastcall;
+    A = 0;
+    B = Const;
+    C = Volatile;
+    D = bor(Const, Volatile);
 }
 
 function Demangler:read_func_access_class()
---print("read_func_access_class (1.0): ", self.input:str())
+print("read_func_access_class (1.0): ", self.input:str())
     local c = string.char(self.input:get());
     local rhs = FuncAccessClass[c]
     if rhs then
@@ -885,12 +883,21 @@ function Demangler:read_func_access_class()
     return 0;
 end
 
+local FuncCallingConvention = {
+    A = Cdecl;
+    B = Cdecl;
+    C = Pascal;
+    E = Thiscall;
+    G = Stdcall;
+    I = Fastcall;
+}
+
 function  Demangler:read_calling_conv() 
 --print("read_calling_conv (1.0): ", self.input:str())
     local orig = self.input:clone();
 
     local c = string.char(self.input:get());
-    local rhs = FuncAccessClass[c]
+    local rhs = FuncCallingConvention[c]
     if rhs then
       return rhs;
     end
@@ -917,7 +924,9 @@ function Demangler:read_func_return_type(ty)
 end
 
 function Demangler:read_storage_class()
+print("read_storage_class (1.0): ", self.input:str())
     local c = self.input:get();
+print("read_storage_class (2.0): ", string.char(c))
 
     if c == string.byte('A') then return 0;
     elseif c == string.byte('B') then return Const;
@@ -934,13 +943,13 @@ function Demangler:read_storage_class()
 end
 
 function Demangler:read_storage_class_for_return()
---print("read_storage_class_for_return (1.0): ", self.input:str())
+print("read_storage_class_for_return (1.0): ", self.input:str())
     if (not self:consume("?")) then
       return 0;
     end
---print("read_storage_class_for_return (2.0): ", self.input:str())
+print("read_storage_class_for_return (2.0): ", self.input:str())
 
-    local orig = input:clone();
+    local orig = self.input:clone();
 
     local c = self.input:get();
 
@@ -961,7 +970,7 @@ end
 
 -- Reads a variable kind.
 function Demangler:read_var_type(ty) 
---print("read_var_type (1): ", self.input:str())
+print("read_var_type (1): ", self.input:str())
   if (self:consume("W4")) then
     ty.prim = Enum;
     ty.name = self:read_name();
@@ -977,7 +986,7 @@ function Demangler:read_var_type(ty)
   end
 
   local c = self.input:get();
---print("read_var_type (3): ", string.char(c))
+print("read_var_type (3): ", string.char(c))
 
   if c == string.byte('T') then
     return self:read_class(ty, Union);
@@ -1079,7 +1088,7 @@ function Demangler:read_pointee(ty, prim)
 end
 
 function Demangler:read_array(ty)
---print("read_array (1.0): ", self.input:str())
+print("read_array (1.0): ", self.input:str())
     local dimension = self:read_number();
 --print("read_array (2.0): ", dimension, self.input:str())
     if (dimension <= 0) then
@@ -1124,7 +1133,7 @@ function Demangler:read_params()
   local head = nil;
   local head = {}
 
---print("read_params (1.0): ", self.input:str())
+print("read_params (1.0): ", self.input:str())
   local idx = 0;
   while (self.error:empty() and not self.input:startsWith('@') and not self.input:startsWith('Z')) do
 --print("read_params (1.1): ", self.input:str())

@@ -90,7 +90,7 @@ local longcases = {
 }
 
 local shortcases = {
-    {['?x@@3P6AHP6AHM@Z0@ZEA'] = 'int(*x)(int(*)(float),int(*)(float))'};
+    {['?fn@?$klass@H@ns@@QEBAIXZ'] = 'unsigned int ns::klass<int>::fn(void)const'};
 }
 
 local function main(cases)
@@ -109,5 +109,5 @@ local function main(cases)
     end
 end
 
-main(longcases)
---main(shortcases)
+--main(longcases)
+main(shortcases)
