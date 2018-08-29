@@ -7,7 +7,7 @@
     https:--raw.githubusercontent.com/rui314/msvc-demangler/master/MicrosoftDemangle.cpp
 ]]
 
-local namespace = require("namespace")
+local namespace = require("peettles.namespace")
 local ns = namespace()
 
 local ffi = require("ffi")
@@ -15,8 +15,8 @@ local bit = require("bit")
 local bor, band = bit.bor, bit.band
 local lshift, rshift = bit.lshift, bit.rshift
 
-local StringBuilder = require("stringbuilder")
-local TextStream = require("TextStream")
+local StringBuilder = require("peettles.stringbuilder")
+local TextStream = require("peettles.TextStream")
 local enum = require("peettles.enum")
 
 -- Storage classes
@@ -91,27 +91,7 @@ enum.inject(FuncClass, ns)
 
 local MAX_NAMES = 10;
 
---[[
-namespace {
-struct Type;
 
--- Represents an identifier which may be a template.
-struct Name {
-  -- Name read from an input string.
-  String str;
-
-  -- Overloaded operators are represented as special names in mangled symbols.
-  -- If this is an operator name, "op" has an operator name (e.g. ">>").
-  -- Otherwise, empty.
-  String op;
-
-  -- Template parameters. Null if not a template.
-  Type *params = nullptr;
-
-  -- Nested names (e.g. "A::B::C") are represented as a linked list.
-  Name *next = nullptr;
-};
---]]
 local function Name (params)
     params = params or {}
     params.str = params.str or "";
@@ -122,33 +102,7 @@ local function Name (params)
     return params;
 end
 
---[[
--- The type class. Mangled symbols are first parsed and converted to
--- this type and then converted to string.
-struct Type {
-  -- Primitive type such as Int.
-  PrimTy prim;
 
-  -- Represents a type X in "a pointer to X", "a reference to X",
-  -- "an array of X", or "a function returning X".
-  Type *ptr = nullptr;
-
-  uint8_t sclass = 0;  -- storage class
-  CallingConv calling_conv;
-  FuncClass func_class;
-
-  uint32_t len; -- valid if prim == Array
-
-  -- Valid if prim is one of (Struct, Union, Class, Enum).
-  Name *name = nullptr;
-
-  -- Function parameters.
-  Type *params = nullptr;
-
-  -- Lists of types (e.g. function parameters) are represented as linked lists.
-  Type *next = nullptr;
-};
---]]
 local function assignKind(lhs, rhs)
 --print("assignKind (1.0) : ", rhs.prim, PrimTy[rhs.prim], rhs.params)
     lhs.prim = rhs.prim or 0;
@@ -1164,7 +1118,7 @@ function Demangler:read_params()
 --print("read_params (1.3): ", tp.prim, PrimTy[tp.prim])
       -- Single-letter types are ignored for backreferences because
       -- memorizing them doesn't save anything.
-      if (idx <= 9 and len - self.input:length() > 1) then
+      if (idx <= MAX_NAMES-1 and len - self.input:length() > 1) then
 --print("read_params (1.3.1): ", idx)
         backref[idx] = tp;
         idx = idx + 1;

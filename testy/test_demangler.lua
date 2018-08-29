@@ -1,7 +1,7 @@
 -- Run test cases for demangler
 package.path = "../?.lua;"..package.path
 
-local Demangler = require("demangler")
+local Demangler = require("peettles.demangler")
 
 local longcases = {
  {['?x@@3HA'] = 'int x'};
