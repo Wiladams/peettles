@@ -31,7 +31,6 @@ local StorageClass = enum {
 enum.inject(StorageClass, ns)
 
 -- Calling conventions
--- uint8_t
 local CallingConv = enum  {
     Cdecl = 0,
     Pascal =1,
@@ -89,7 +88,63 @@ local FuncClass = enum {
 };
 enum.inject(FuncClass, ns)
 
+local ASCIITokens = {
+    T_A = string.byte('A');
+    T_B = string.byte('B');
+    T_C = string.byte('C');
+    T_D = string.byte('D');
+    T_E = string.byte('E');
+    T_F = string.byte('F');
+    T_G = string.byte('G');
+    T_H = string.byte('H');
+    T_I = string.byte('I');
+    T_J = string.byte('J');
+    T_K = string.byte('K');
+    T_L = string.byte('L');
+    T_M = string.byte('M');
+    T_N = string.byte('N');
+    T_O = string.byte('O');
+    T_P = string.byte('P');
+    T_Q = string.byte('Q');
+    T_R = string.byte('R');
+    T_S = string.byte('S');
+    T_T = string.byte('T');
+    T_U = string.byte('U');
+    T_V = string.byte('V');
+    T_W = string.byte('W');
+    T_X = string.byte('X');
+    T_Y = string.byte('Y');
+    T_Z = string.byte('Z');
+
+    T_a = string.byte('a');
+    T_z = string.byte('z');
+
+    T_0 = string.byte('0');
+    T_1 = string.byte('1');
+    T_2 = string.byte('2');
+    T_3 = string.byte('3');
+    T_4 = string.byte('4');
+    T_5 = string.byte('5');
+    T_6 = string.byte('6');
+    T_7 = string.byte('7');
+    T_8 = string.byte('8');
+    T_9 = string.byte('9');
+
+    T_AMP = string.byte('@');
+    T_UNDER = string.byte('_');
+}
+enum.inject(ASCIITokens, ns)
+
+
+local function isalpha(c)
+    return (c >= T_a and c <= T_z) or
+      (c >= T_A and c <= T_Z)
+end
+
+
 local MAX_NAMES = 10;
+
+
 
 
 local function Name (params)
@@ -202,9 +257,7 @@ function TypeWriter:write_pre(ty)
       local typrim = ty.prim;
       local os = self.os;
   
---print("write_pre (1.0): ", ty.prim, PrimTy[ty.prim])
       if typrim == Unknown or typrim == None then
---print("write_pre (1.1): ", typrim)
         -- nothing
       elseif typrim == Function then
           self:write_pre(ty.ptr);
@@ -260,7 +313,6 @@ end
   -- Write the "second half" of a given kind.
 function TypeWriter:write_post(ty)
       local os = self.os;
---print("write_post (1.0): ", ty.prim, PrimTy[ty.prim], ty.sclass)
       if (ty.prim == Function) then
         --print("write_post (1.1): ", ty.params)
         os = os + "(";
@@ -289,25 +341,18 @@ end
   
   -- Write a function or template parameter list.
 function TypeWriter:write_params(params)
---print("write_params (1.0): ", params)
     if not params then return end
 
     local tp = params;
     local os = self.os;
   
       for idx, tp in ipairs(params) do
-      --while tp ~= nil do
-          --if tp ~= params then
-          --    os = os + ",";
-          --end
           if idx > 1 then
             os = os + ",";
           end
 
           self:write_pre(tp);
           self:write_post(tp);
-  
-          --tp = tp.next;
       end
 end
   
@@ -379,16 +424,12 @@ function TypeWriter:write_tmpl_params(name)
 end
   
 -- Writes a space if the last token does not end with a punctuation.
-local function isalpha(c)
-    return (c >= string.byte('a') and c <= string.byte('z')) or
-      (c >= string.byte('A') and c <= string.byte('Z'))
-end
+
   
 function TypeWriter:write_space() 
---print(string.format("write_space (1.0): '%s'", self.os:str()))
       if (not self.os:empty()) then
           local s = self.os:str();
---print(string.format("write_space (2.0): '%s'", s))
+
           if isalpha(string.byte(s, #s)) then
               self.os = self.os + " ";
           end
@@ -433,7 +474,6 @@ function Demangler.create(self, str)
 end
 
 function Demangler.demangle(str)
---print("demangle (1.0): ", str)
     -- create state
     local dm = Demangler(str);
 
@@ -461,7 +501,6 @@ function Demangler:consume(str)
 end
 
 function Demangler:expect(s) 
-  
     if (not self:consume(s) and self.error:empty()) then
       self.error = self.error + s + " expected, but got " + self.input:str();
       return false;
@@ -471,8 +510,8 @@ function Demangler:expect(s)
 end
 
 -- Parser entry point.
-  -- You are supposed to call parse() first and then check if error is
-  -- still empty. After that, call str() to get a result.
+-- You are supposed to call parse() first and then check if error is
+-- still empty. After that, call str() to get a result.
 
 function Demangler:parse()
     -- MSVC-style mangled symbols must start with '?'.
@@ -481,27 +520,20 @@ function Demangler:parse()
         self.kind.prim = Unknown;
     end
 
---print("PARSE 1: ", self.input:str())
-
     -- What follows is a main symbol name. This may include
     -- namespaces or class names.
     self.symbol = self:read_name();
 
---print("PARSE 2: ", self.symbol.str, "REMAIN:",self.input:str(), "ERR:",self.error:str())
     -- Read a variable.
     if (self:consume("3")) then
---print("PARSE (2.1): ", self.input:str())
       self:read_var_type(self.kind);
       return self;
     end
 
     -- Read a non-member function.
---print("parse (3): ", self.input:str())
     if (self:consume("Y")) then
---print("parse (3.1): ", self.input:str())
         self.kind.prim = Function;
         self.kind.calling_conv = self:read_calling_conv();
---print("parse (3.2), calling conv: ", self.kind.calling_conv, CallingConv[self.kind.calling_conv])
         self.kind.ptr = Kind();
         self.kind.ptr.sclass = self:read_storage_class_for_return();
         self:read_var_type(self.kind.ptr);
@@ -539,7 +571,6 @@ end
 -- <hex-digit>            ::= [A-P]           # A = 0, B = 1, ...
 --]]
 function Demangler:read_number()
---print("read_number (1.0): ", self.input:str())
     local neg = self:consume("?");
 
     -- the easy case, where a number is the first thing
@@ -554,8 +585,7 @@ function Demangler:read_number()
     local ret = 0;
     for i = 0, self.input:length()-1 do
         local c = self.input:peek(i);
---print("read_number (2.1): ", string.char(c))
-        if (c == string.byte('@')) then
+        if (c == T_AMP) then
             self.input:trim(i + 1);
 
             if neg then 
@@ -564,9 +594,8 @@ function Demangler:read_number()
             return ret;
         end
 
-        if (string.byte('A') <= c and c <= string.byte('P')) then
-            ret = lshift(ret, 4) + (c - string.byte('A'));
---print("read_number (2.1.1): ", ret)
+        if (T_A <= c and c <= T_P) then
+            ret = lshift(ret, 4) + (c - T_A);
         else
             break;
         end
@@ -582,7 +611,7 @@ end
 -- Read until the next '@'.
 function Demangler:read_string(memorize) 
     for i = 0, self.input:length()-1 do
-      if (self.input:peek(i) == string.byte('@')) then
+      if (self.input:peek(i) == T_AMP) then
         local ret = self.input:substr(0, i);
         self.input:trim(i + 1);
   
@@ -622,14 +651,11 @@ end
 function Demangler:read_name()
     local head = nil;
 
---print("read_name (1) : ", self.input:str())
   while (not self:consume("@")) do
---print("read_name (2) : ", self.input:str())
     local elem = Name();
 
     if (self.input:startsWithDigit()) then
-      local i = self.input:peek() - string.byte('0');
---print("read_name(2.1), i: ", i, self.num_names)
+      local i = self.input:peek() - T_0;
       if (i >= self.num_names) then
         if (self.error:empty()) then
           self.error = self.error + "name reference too large: " + self.input:str();
@@ -638,23 +664,19 @@ function Demangler:read_name()
       end
       self.input:trim(1);
       elem.str = self.names[i];
---print("read_name (2.2): ", elem.str)
     elseif (self:consume("?$")) then
       -- Class template.
---print("read_name (2.3)")
         elem.str = self:read_string(false);
       elem.params = self:read_params();
       self:expect("@");
 
     elseif (self:consume("?")) then
       -- Overloaded operator.
---print("read_name (2.4)")
       self:read_operator(elem);
     else
 
       -- Non-template functions or classes.
       elem.str = self:read_string(true);
---print("read_name (2.5): ", elem.str)
     end
 
     elem.next = head;
@@ -665,14 +687,11 @@ function Demangler:read_name()
 end
 
 function Demangler:read_func_ptr(ty)
---print("read_func_ptr (1.0): ", self.input:str())
   local tp = Kind();
   tp.prim = Function;
   tp.ptr = Kind();
   self:read_var_type(tp.ptr);
---print("read_func_ptr (2.0): ", self.input:str())
   tp.params = self:read_params();
---print("read_func_ptr (3.0): ", self.input:str())
   ty.prim = Ptr;
   ty.ptr = tp;
 
@@ -686,51 +705,51 @@ end
 
 
 local operatorName = {
-    ['0'] = "ctor";
-    ['1'] = "dtor";
-    ['2'] = " new";
-    ['3'] = " delete";
-    ['4'] = "=";
-    ['5'] = ">>";
-    ['6'] = "<<";
-    ['7'] = "!";
-    ['8'] = "==";
-    ['9'] = "!=";
-    ['A'] = "[]";
-    ['C'] = "->";
-    ['D'] = "*";
-    ['E'] = "++";
-    ['F'] = "--";
-    ['G'] = "-";
-    ['H'] = "+";
-    ['I'] = "&";
-    ['J'] = "->*";
-    ['K'] = "/";
-    ['L'] = "%";
-    ['M'] = "<";
-    ['N'] = "<=";
-    ['O'] = ">";
-    ['P'] = ">=";
-    ['Q'] = ",";
-    ['R'] = "()";
-    ['S'] = "~";
-    ['T'] = "^";
-    ['U'] = "|";
-    ['V'] = "&&";
-    ['W'] = "||";
-    ['X'] = "*=";
-    ['Y'] = "+=";
-    ['Z'] = "-=";
-    ['_'] = {
-      ['0'] = "/=";
-      ['1'] = "%=";
-      ['2'] = ">>=";
-      ['3'] = "<<=";
-      ['4'] = "&=";
-      ['5'] = "|=";
-      ['6'] = "^=";
-      ['U'] = " new[]";
-      ['V'] = " delete[]";
+    [T_0] = "ctor";
+    [T_1] = "dtor";
+    [T_2] = " new";
+    [T_3] = " delete";
+    [T_4] = "=";
+    [T_5] = ">>";
+    [T_6] = "<<";
+    [T_7] = "!";
+    [T_8] = "==";
+    [T_9] = "!=";
+    [T_A] = "[]";
+    [T_C] = "->";
+    [T_D] = "*";
+    [T_E] = "++";
+    [T_F] = "--";
+    [T_G] = "-";
+    [T_H] = "+";
+    [T_I] = "&";
+    [T_J] = "->*";
+    [T_K] = "/";
+    [T_L] = "%";
+    [T_M] = "<";
+    [T_N] = "<=";
+    [T_O] = ">";
+    [T_P] = ">=";
+    [T_Q] = ",";
+    [T_R] = "()";
+    [T_S] = "~";
+    [T_T] = "^";
+    [T_U] = "|";
+    [T_V] = "&&";
+    [T_W] = "||";
+    [T_X] = "*=";
+    [T_Y] = "+=";
+    [T_Z] = "-=";
+    [T_UNDER] = {
+      [T_0] = "/=";
+      [T_1] = "%=";
+      [T_2] = ">>=";
+      [T_3] = "<<=";
+      [T_4] = "&=";
+      [T_5] = "|=";
+      [T_6] = "^=";
+      [T_U] = " new[]";
+      [T_V] = " delete[]";
     };
 }
 
@@ -738,22 +757,14 @@ local operatorName = {
 function Demangler:read_operator_name()
   local orig = self.input:clone();
 
-  local function returnError()
-    if (self.error:empty()) then
-      self.error = self.error + "unknown operator name: " + orig:str();
-    end
-  
-    return "";
-  end
-
-  local achar = string.char(self.input:get())
+  local achar = self.input:get()
   local rhs1 = operatorName[achar]
 
   if rhs1 then
     if type(rhs1) == "string" then 
         return rhs1;
     elseif type(rhs1) == "table" then
-        achar = string.char(self.input:get())
+        achar = self.input:get()
         local rhs2 = rhs1[achar];
         if rhs2 then
             return rhs2;
@@ -769,43 +780,37 @@ function Demangler:read_operator_name()
 end
 
 function Demangler:read_operator(name)
---print("read_operator (1.0): ", self.input:str())
     name.op = self:read_operator_name();
---print("read_operator (2.0): ", name.op, self.input:str())
 
-    if (self.error:empty() and self.input:peek() ~= string.byte('@')) then
---print("read_operator (2.1): ", self.input:str())
+    if (self.error:empty() and self.input:peek() ~= T_AMP) then
         name.str = self:read_string(true);
---print("read_operator (2.2): ", name.str, self.input:str())
     end
 end
 
 function Demangler:read_func_class()
---print("read_func_class: ", self.input:str())
 
     local c = self.input:get();
---print("read_func_class (2.0): ",string.char(c))
 
-    if c == string.byte('A') then return Private;
-    elseif c == string.byte('B') then return bor(Private, FFar);
-    elseif c == string.byte('C') then return bor(Private, Static);
-    elseif c == string.byte('D') then return bor(Private, Static);
-    elseif c == string.byte('E') then return bor(Private, Virtual);
-    elseif c == string.byte('F') then return bor(Private, Virtual);
-    elseif c == string.byte('I') then return Protected;
-    elseif c == string.byte('J') then return bor(Protected, FFar);
-    elseif c == string.byte('K') then return bor(Protected, Static);
-    elseif c == string.byte('L') then return bor(Protected, Static, FFar);
-    elseif c == string.byte('M') then return bor(Protected, Virtual);
-    elseif c == string.byte('N') then return bor(Protected, Virtual, FFar);
-    elseif c == string.byte('Q') then return Public;
-    elseif c == string.byte('R') then return bor(Public, FFar);
-    elseif c == string.byte('S') then return bor(Public, Static);
-    elseif c == string.byte('T') then return bor(Public, Static, FFar);
-    elseif c == string.byte('U') then return bor(Public, Virtual);
-    elseif c == string.byte('V') then return bor(Public, Virtual, FFar);
-    elseif c == string.byte('Y') then return Global;
-    elseif c == string.byte('Z') then return bor(Global, FFar);
+    if c == T_A then return Private;
+    elseif c == T_B then return bor(Private, FFar);
+    elseif c == T_C then return bor(Private, Static);
+    elseif c == T_D then return bor(Private, Static);
+    elseif c == T_E then return bor(Private, Virtual);
+    elseif c == T_F then return bor(Private, Virtual);
+    elseif c == T_I then return Protected;
+    elseif c == T_J then return bor(Protected, FFar);
+    elseif c == T_K then return bor(Protected, Static);
+    elseif c == T_L then return bor(Protected, Static, FFar);
+    elseif c == T_M then return bor(Protected, Virtual);
+    elseif c == T_N then return bor(Protected, Virtual, FFar);
+    elseif c == T_Q then return Public;
+    elseif c == T_R then return bor(Public, FFar);
+    elseif c == T_S then return bor(Public, Static);
+    elseif c == T_T then return bor(Public, Static, FFar);
+    elseif c == T_U then return bor(Public, Virtual);
+    elseif c == T_V then return bor(Public, Virtual, FFar);
+    elseif c == T_Y then return Global;
+    elseif c == T_Z then return bor(Global, FFar);
     end
 
     self.input:unget(c);
@@ -818,15 +823,14 @@ end
 
 
 local FuncAccessClass = {
-    A = 0;
-    B = Const;
-    C = Volatile;
-    D = bor(Const, Volatile);
+    [T_A] = 0;
+    [T_B] = Const;
+    [T_C] = Volatile;
+    [T_D] = bor(Const, Volatile);
 }
 
 function Demangler:read_func_access_class()
---print("read_func_access_class (1.0): ", self.input:str())
-    local c = string.char(self.input:get());
+    local c = self.input:get();
     local rhs = FuncAccessClass[c]
     if rhs then
       return rhs;
@@ -838,19 +842,18 @@ function Demangler:read_func_access_class()
 end
 
 local FuncCallingConvention = {
-    A = Cdecl;
-    B = Cdecl;
-    C = Pascal;
-    E = Thiscall;
-    G = Stdcall;
-    I = Fastcall;
+    [T_A] = Cdecl;
+    [T_B] = Cdecl;
+    [T_C] = Pascal;
+    [T_E] = Thiscall;
+    [T_G] = Stdcall;
+    [T_I] = Fastcall;
 }
 
 function  Demangler:read_calling_conv() 
---print("read_calling_conv (1.0): ", self.input:str())
     local orig = self.input:clone();
 
-    local c = string.char(self.input:get());
+    local c = self.input:get();
     local rhs = FuncCallingConvention[c]
     if rhs then
       return rhs;
@@ -866,11 +869,9 @@ end
 -- <return-type> ::= <type>
 --               ::= @ # structors (they have no declared return type)
 function Demangler:read_func_return_type(ty)
---print("read_func_return_type (1.0): ", self.input:str())
     if (self:consume("@")) then
         ty.prim = None;
     else
---print("read_func_return_type (1.1): ")
         self:read_var_type(ty);
     end
 
@@ -878,18 +879,16 @@ function Demangler:read_func_return_type(ty)
 end
 
 function Demangler:read_storage_class()
---print("read_storage_class (1.0): ", self.input:str())
     local c = self.input:get();
---print("read_storage_class (2.0): ", string.char(c))
 
-    if c == string.byte('A') then return 0;
-    elseif c == string.byte('B') then return Const;
-    elseif c == string.byte('C') then return Volatile;
-    elseif c == string.byte('D') then return bor(Const, Volatile);
-    elseif c == string.byte('E') then return Far;
-    elseif c == string.byte('F') then return bor(Const, Far);
-    elseif c == string.byte('G') then return bor(Volatile, Far);
-    elseif c == string.byte('H') then return bor(Const, Volatile, Far);
+    if c == T_A then return 0;
+    elseif c == T_B then return Const;
+    elseif c == T_C then return Volatile;
+    elseif c == T_D then return bor(Const, Volatile);
+    elseif c == T_E then return Far;
+    elseif c == T_F then return bor(Const, Far);
+    elseif c == T_G then return bor(Volatile, Far);
+    elseif c == T_H then return bor(Const, Volatile, Far);
     end
 
     self.input:unget(c);
@@ -897,23 +896,20 @@ function Demangler:read_storage_class()
 end
 
 function Demangler:read_storage_class_for_return()
---print("read_storage_class_for_return (1.0): ", self.input:str())
     if (not self:consume("?")) then
       return 0;
     end
---print("read_storage_class_for_return (2.0): ", self.input:str())
 
     local orig = self.input:clone();
 
     local c = self.input:get();
 
-    if c == string.byte('A') then return 0;
-    elseif c == string.byte('B') then return Const;
-    elseif c == string.byte('C') then return Volatile;
-    elseif c == string.byte('D') then return bor(Const, Volatile); 
+    if c == T_A then return 0;
+    elseif c == T_B then return Const;
+    elseif c == T_C then return Volatile;
+    elseif c == T_D then return bor(Const, Volatile); 
     end
 
-    -- default case
     if (self.error:empty()) then
         self.error = self.error + "unknown storage class: " + orig:str();
     end
@@ -924,45 +920,38 @@ end
 
 -- Reads a variable kind.
 function Demangler:read_var_type(ty) 
---print("read_var_type (1): ", self.input:str())
   if (self:consume("W4")) then
     ty.prim = Enum;
     ty.name = self:read_name();
     return self;
   end
---print("read_var_type (2)")
---print("read_var_type (2): ", self.input:str())
+
   if (self:consume("P6A")) then
---print("read_var_type (2.1)")
     self:read_func_ptr(ty);
---print("read_var_type (2.2)")
     return
   end
 
   local c = self.input:get();
---print("read_var_type (3): ", string.char(c))
 
-  if c == string.byte('T') then
+  if c == T_T then
     return self:read_class(ty, Union);
-  elseif c == string.byte('U') then
+  elseif c == T_U then
     return self:read_class(ty, Struct);
-  elseif c == string.byte('V') then
+  elseif c == T_V then
     return self:read_class(ty, Class);
-  elseif c == string.byte('A') then
+  elseif c == T_A then
     return self:read_pointee(ty, Ref);
-  elseif c == string.byte('P') then
+  elseif c == T_P then
     return self:read_pointee(ty, Ptr);
-  elseif c == string.byte('Q') then
+  elseif c == T_Q then
     self:read_pointee(ty, Ptr);
     ty.sclass = Const;
     return self;
-  elseif c == string.byte('Y') then
+  elseif c == T_Y then
     return self:read_array(ty);
   else
     self.input:unget(c);
---print("read_var_type (3.8): ", self.input:str())
     ty.prim = self:read_prim_type();
---print("read_var_type (3.9): ", ty.prim, PrimTy[ty.prim], self.input:str())
   end
     
     return self;
@@ -992,21 +981,15 @@ local PrimitiveType = {
 }
 
 function Demangler:read_prim_type() 
---print("read_prim_type (1): ", self.input:str())
     local orig = self.input:clone();
---print("read_prim_type (2): ", orig:str())
     local c = string.char(self.input:get());
---print("read_prim_type (3): ", c)
     local rhs = PrimitiveType[c]
---print("read_prim_type (4): ", rhs)
 
     if rhs and type(rhs) == "number" then
         return rhs;
     elseif rhs and type(rhs) == "table" then
         c = string.char(self.input:get())
---print("read_prim_type (4.2): ", c)
         local primtype = rhs[c];
---print("read_prim_type (4.2.3): ", primtype)
         if primtype then
             return primtype;
         end
@@ -1020,31 +1003,23 @@ function Demangler:read_prim_type()
 end
 
 function Demangler:read_class(ty, prim)
---print("read_class (1.0): ", self.input:str())
     ty.prim = prim;
     ty.name = self:read_name();
---print("read_class (2.0): ", self.input:str())
     return self;
 end
 
 function Demangler:read_pointee(ty, prim)
---print("read_pointee (1.0): ", self.input:str())
     ty.prim = prim;
     self:expect("E"); -- if 64 bit
---print("read_pointee (2.0): ", self.input:str())
     ty.ptr = Kind();
     ty.ptr.sclass = self:read_storage_class();
---print("read_pointee (3.0): ", self.input:str())
     self:read_var_type(ty.ptr);
---print("read_pointee (4.0): ", self.input:str())
 
     return self;
 end
 
 function Demangler:read_array(ty)
---print("read_array (1.0): ", self.input:str())
     local dimension = self:read_number();
---print("read_array (2.0): ", dimension, self.input:str())
     if (dimension <= 0) then
         if (self.error:empty()) then
             self.error = self.error + "invalid array dimension: " + tostring(dimension);
@@ -1057,7 +1032,6 @@ function Demangler:read_array(ty)
     while i < dimension do
         tp.prim = Array;
         tp.len = self:read_number();
---print("read_array (3.0): ", tp.len)
         tp.ptr = Kind();
         tp = tp.ptr;
         i = i + 1;
@@ -1087,16 +1061,11 @@ function Demangler:read_params()
   local head = nil;
   local head = {}
 
---print("read_params (1.0): ", self.input:str())
   local idx = 0;
   while (self.error:empty() and not self.input:startsWith('@') and not self.input:startsWith('Z')) do
---print("read_params (1.1): ", self.input:str())
     if (self.input:startsWithDigit()) then
---print("read_params (1.1.1): ", self.input:str())
       local n = self.input:peekDigit();
---print("read_params (1.1.2): ", n, idx, self.input:str())
       if (n >= idx) then
---print("read_params (1.1.2.1")
         if (self.error:empty()) then
           self.error = self.error + "invalid backreference: " + self.input:str();
         end
@@ -1110,16 +1079,13 @@ function Demangler:read_params()
       table.insert(head, tp);
     else
       local len = self.input:length();
---print("read_params (1.2): ", len)
 
       tp = Kind();
       table.insert(head, tp)
       self:read_var_type(tp);
---print("read_params (1.3): ", tp.prim, PrimTy[tp.prim])
       -- Single-letter types are ignored for backreferences because
       -- memorizing them doesn't save anything.
       if (idx <= MAX_NAMES-1 and len - self.input:length() > 1) then
---print("read_params (1.3.1): ", idx)
         backref[idx] = tp;
         idx = idx + 1;
       end
