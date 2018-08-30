@@ -93,21 +93,53 @@ local shortcases = {
     {['?fn@?$klass@H@ns@@QEBAIXZ'] = 'unsigned int ns::klass<int>::fn(void)const'};
 }
 
+-- system32\msvcp_win.dll
+local classcases = {
+    "??0?$basic_iostream@_WU?$char_traits@_W@std@@@std@@QEAA@PEAV?$basic_streambuf@_WU?$char_traits@_W@std@@@1@@Z";
+    "??0?$basic_ostream@DU?$char_traits@D@std@@@std@@IEAA@$$QEAV01@@Z";
+    "??0?$ctype@_W@std@@QEAA@_K@Z";
+    "??0?$time_put@DV?$ostreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@QEAA@AEBV_Locinfo@1@_K@Z";
+    "??1time_base@std@@UEAA@XZ";
+    "??4?$_Iosb@H@std@@QEAAAEAV01@$$QEAV01@@Z";
+}
+
+
 local function main(cases)
     for idx, testcase in ipairs(cases) do
-        for k,v in pairs(testcase) do
-            local res, err = Demangler.demangle(k)
+        if type(testcase) == "table" then
+            for k,v in pairs(testcase) do
+                local res, err = Demangler.demangle(k)
 
+                if not res then
+                    print("FAIL, ERROR: ", err)
+                elseif res == v then
+                    print("PASS")
+                else
+                    print("FAIL", k, v, res)
+                end
+            end
+        elseif type(testcase) == "string" then
+            local res, err = Demangler.demangle(testcase)
             if not res then
                 print("FAIL, ERROR: ", err)
-            elseif res == v then
-                print("PASS")
             else
-                print("FAIL", k, v, res)
+                print(res, testcase)
             end
         end
     end
 end
 
+local function simple(str)
+    local res, err = Demangler.demangle(str)
+    if not res then
+        print("FAIL, ERROR: ", err)
+        return false;
+    end
+
+    print(str, res)
+
+end
+
 main(longcases)
 --main(shortcases)
+--main(classcases)
