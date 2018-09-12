@@ -1,3 +1,8 @@
+--[[
+    Print out the details of a pdb stream
+    give the stream number (format) and the name of the
+    stream file.
+]]
 package.path = "../?.lua;"..package.path
 
 local ffi = require("ffi")
@@ -11,7 +16,7 @@ local binstream = require("peettles.binstream")
 local readStream = require("peettles.parse_pdb_1")
 
 if not arg[1] or not arg[2] then
-    print("USAGE:  pdb_read_strm.lua <number> filename")
+    print("USAGE:  pdb_read_strm.lua filename <number> ")
     return false;
 end
 

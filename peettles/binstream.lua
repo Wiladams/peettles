@@ -61,6 +61,8 @@ end
 function binstream.range(self, size, pos)
     pos = pos or self.cursor;
 
+--print("binstream.range: ", size, pos, self:remaining())
+
     if pos < 0 or size < 0 then
         return false, "pos or size < 0"
     end
