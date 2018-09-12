@@ -228,17 +228,6 @@ end
 
 
 --[[
-    SN  uint16_t
-
-    Follows structure:
-        NewDBIHdr
-    Consult dbi.cpp
-        BOOL DBI1::fInit(BOOL fCreate)
-
-    Read the initial stream structure
-
-    BuildNumber bitfield
-
     // Version information
         union {
         struct {
@@ -254,16 +243,8 @@ end
         USHORT          usVerAll;
     };
 
-
-    struct _flags {
-        USHORT  fIncLink:1;     // true if linked incrmentally (really just if ilink thunks are present)
-        USHORT  fStripped:1;    // true if PDB::CopyTo stripped the private data out
-        USHORT  fCTypes:1;      // true if this PDB is using CTypes.
-        USHORT  unused:13;      // reserved, must be 0.
-    } flags;
-
 ]]
-local function readStream(bs, res)
+local function readStreamMeta(bs, res)
     res = res or {}
 
     res.VersionSignature = bs:readInt32();      -- Always 0xffff
@@ -297,7 +278,7 @@ local function readStream(bs, res)
     res.Flags = {
         WasIncrementallyLinked = band(flags, 0x1) ~= 0;
         PrivateSymbolsStripped = band(flags, 0x2) ~= 0;
-        HasConflictingTypes = band(flags, 0x4) ~= 0;
+        UsingCTypes = band(flags, 0x4) ~= 0;
     }
 
     res.Machine = bs:readUInt16();  -- Machine type
@@ -329,6 +310,14 @@ local function readStream(bs, res)
     -- Read in Debug Header substream
     res.OptionalDebugHeaderStream = read_OptionalDebugHeaderSubstream(res, bs)
 
+
+    return res;
+end
+
+local function readStream(bs, res)
+    res = res or {}
+    
+    readStreamMeta(bs, res);
 
     return res;
 end

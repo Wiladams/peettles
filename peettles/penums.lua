@@ -8,6 +8,23 @@ end
 
 local enum = require("peettles.enum")
 
+local DebugType = enum {
+    IMAGE_DEBUG_TYPE_UNKNOWN = 0;
+    IMAGE_DEBUG_TYPE_COFF = 1;
+    IMAGE_DEBUG_TYPE_CODEVIEW = 2;
+    IMAGE_DEBUG_TYPE_FPO = 3;
+    IMAGE_DEBUG_TYPE_MISC = 4;
+    IMAGE_DEBUG_TYPE_EXCEPTION = 5;
+    IMAGE_DEBUG_TYPE_FIXUP = 6;
+    IMAGE_DEBUG_TYPE_OMAP_TO_SRC = 7;
+    IMAGE_DEBUG_TYPE_OMAP_FROM_SRC = 8;
+    IMAGE_DEBUG_TYPE_BORLAND = 9;
+    IMAGE_DEBUG_TYPE_RESERVED10 = 10;
+    IMAGE_DEBUG_TYPE_CLSID = 11;
+    IMAGE_DEBUG_TYPE_REPRO = 16;
+
+};
+
 local DirectoryID = enum {
     IMAGE_DIRECTORY_ENTRY_EXPORT          = 0;   -- Export Directory
     IMAGE_DIRECTORY_ENTRY_IMPORT          = 1;   -- Import Directory
@@ -291,6 +308,7 @@ MAXIMUM_RESERVED_MANIFEST_RESOURCE_ID   = 16;
 
 
 local exports = {
+    DebugType           = DebugType;
     DirectoryID         = DirectoryID;
     DllCharacteristics  = DllCharacteristics,
     Subsystem           = Subsystem,
