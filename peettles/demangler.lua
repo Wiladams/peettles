@@ -959,36 +959,36 @@ end
 
 -- Reads a primitive kind.
 local PrimitiveType = {
-    X = Void;
-    D = Char;
-    C = Schar;
-    E = Uchar;
-    F = Short;
-    G = Ushort;
-    H = Int;
-    I = Uint;
-    J = Long;
-    K = Ulong;
-    M = Float;
-    N = Double;
-    O = Ldouble;
-    ['_'] = {
-      N = Bool;
-      J = Int64;
-      K = Uint64;
-      W = Wchar;
+    [T_X] = Void;
+    [T_D] = Char;
+    [T_C] = Schar;
+    [T_E] = Uchar;
+    [T_F] = Short;
+    [T_G] = Ushort;
+    [T_H] = Int;
+    [T_I] = Uint;
+    [T_J] = Long;
+    [T_K] = Ulong;
+    [T_M] = Float;
+    [T_N] = Double;
+    [T_O] = Ldouble;
+    [T_UNDER] = {
+        [T_N] = Bool;
+        [T_J] = Int64;
+        [T_K] = Uint64;
+        [T_W] = Wchar;
     }
 }
 
 function Demangler:read_prim_type() 
     local orig = self.input:clone();
-    local c = string.char(self.input:get());
+    local c = self.input:get();
     local rhs = PrimitiveType[c]
 
     if rhs and type(rhs) == "number" then
         return rhs;
     elseif rhs and type(rhs) == "table" then
-        c = string.char(self.input:get())
+        c = self.input:get()
         local primtype = rhs[c];
         if primtype then
             return primtype;
