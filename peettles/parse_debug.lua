@@ -27,7 +27,23 @@ local function readFPO(bs, res)
 
     -- read an array of FPO_DATA records
     -- until EOF
-    
+    while not bs:EOF() do 
+        local fpo = {
+            ulOffStart = bs:readDWORD();
+            cbProcSize = bs:readDWORD();
+            cdwLocals = bs:readDWORD();
+            cdwParams = bs:readWORD();
+            Flags = bs:readUInt16();
+        }
+        fpo.cbProlog = band(fpo.Flags, 0xff);
+        fpo.cbRegs = band(rshift(fpo.Flags,8), 0x7);
+        fpo.fHasSEH = band(rshift(fpo.Flags,11),0x1);
+        fpo.fUseBP = band(rshift(fpo.Flags,12), 0x1);
+        fpo.cbFrame = band(rshift(fpo.Flags,14),0x3);
+        
+        table.insert(res, fpo)
+    end
+
     return res;
 end
 
