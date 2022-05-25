@@ -8,6 +8,8 @@ local band = bit.band;
 local binstream = require("peettles.binstream")
 local peenums = require("peettles.penums")
 local putils = require("peettles.print_utils")
+local coff_utils = require("peettles.coff_utils")
+
 
 local function parse(bs, peinfo, res)
 
@@ -23,18 +25,15 @@ local function parse(bs, peinfo, res)
         return false, "  No Virtual Address";
     end
 
-
-
-
     -- We use the directory entry to lookup the actual export table.
     -- We need to turn the VirtualAddress into an actual file offset
     -- We also want to know what section the export table is in for 
     -- forwarding comparisons
     local sections = peinfo.Sections;
-    local exportSection = sections:GetEnclosingSectionHeader(dirTable.VirtualAddress)
+    local exportSection = coff_utils.getEnclosingSection(sections, dirTable.VirtualAddress)
     local exportSectionName = exportSection.Name;
 
-    local fileOffset = sections:fileOffsetFromRVA(dirTable.VirtualAddress)
+    local fileOffset = coff_utils.fileOffsetFromRVA(sections, dirTable.VirtualAddress)
 
     -- We now know where the actual export table exists, so 
     -- create a binary stream, and position it at the offset
@@ -57,20 +56,20 @@ local function parse(bs, peinfo, res)
     res.AddressOfNameOrdinals = ms:readUInt32();
 
     -- Get the internal name of the module
-    local nNameOffset = sections:fileOffsetFromRVA(res.nName)
+    local nNameOffset = coff_utils.fileOffsetFromRVA(sections, res.nName)
     if nNameOffset then
         -- use a separate stream to read the string so we don't
         -- upset the positioning on the one that's reading
         -- the import descriptors
-        local ns = binstream(self._data, self._size, nNameOffset, true)
+        local ns = bs:clone(nNameOffset)
         res.ModuleName = ns:readString();
     end 
 
     -- Get the function pointers
     res.AllFunctions = {};
     if res.NumberOfFunctions > 0 then
-        local EATOffset = self:fileOffsetFromRVA(res.AddressOfFunctions);
-        local EATStream = binstream(self._data, self._size, EATOffset, true);
+        local EATOffset = coff_utils.fileOffsetFromRVA(sections, res.AddressOfFunctions);
+        local EATStream = bs:clone(EATOffset);
 
         --print("EATOffset: ", string.format("0x%08X", EATOffset))
 
@@ -80,8 +79,8 @@ local function parse(bs, peinfo, res)
             local AddressRVA = EATStream:readUInt32()
 
             if AddressRVA ~= 0 then
-                local section = self:GetEnclosingSectionHeader(AddressRVA)
-                local ExportOffset = self:fileOffsetFromRVA(AddressRVA)
+                local section = coff_utils.getEnclosingSection(sections, AddressRVA)
+                local ExportOffset = coff_utils.fileOffsetFromRVA(sections, AddressRVA)
 
                 -- We use the AddressRVA to figure out which section the function
                 -- body is located in.  If that section is not a code section, then
@@ -105,7 +104,7 @@ local function parse(bs, peinfo, res)
                     elseif section.Name == exportSectionName then 
                         -- If not a code section, then it could possibly be a forwarder
                         -- these are typically pointing into the exports section itself
-                        local ForwardStream = binstream(self._data, self._size, ExportOffset, true)
+                        local ForwardStream = bs:clone(ExportOffset)
                         local forwardName = ForwardStream:readString();
                         res.AllFunctions[i] = forwardName;
 
@@ -128,20 +127,20 @@ local function parse(bs, peinfo, res)
     -- Get the names if the Names array exists
     res.NamedFunctions = {}
     if res.NumberOfNames > 0 then
-        local ENTOffset = self:fileOffsetFromRVA(res.AddressOfNames)
-        local ENTStream = binstream(self._data, self._size, ENTOffset, true);
+        local ENTOffset = coff_utils.fileOffsetFromRVA(sections, res.AddressOfNames)
+        local ENTStream = bs:clone(ENTOffset);
 
         -- Setup a stream for the AddressOfNameOrdinals (EOT) table
-        local EOTOffset = self:fileOffsetFromRVA(res.AddressOfNameOrdinals);
-        local EOTStream = binstream(self._data, self._size, EOTOffset, true);
+        local EOTOffset = coff_utils.fileOffsetFromRVA(sections, res.AddressOfNameOrdinals);
+        local EOTStream = bs:clone(EOTOffset);
 
         -- create a stream we'll use repeatedly to read name values
-        local nameStream = binstream(self._data, self._size, 0, true);
+        local nameStream = bs:clone(0);
         
         for i=1, res.NumberOfNames do
             -- create a stream pointing at the specific name
             local nameRVA = ENTStream:readUInt32();
-            local nameOffset = self:fileOffsetFromRVA(nameRVA)
+            local nameOffset = coff_utils.fileOffsetFromRVA(sections, nameRVA)
             nameStream:seek(nameOffset)
 
             local name = nameStream:readString();

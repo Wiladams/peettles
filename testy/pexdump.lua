@@ -1,9 +1,9 @@
 --[[
-	This is a general test case to do a sanity check on parsing of PE files.
-		It calls the parser, getting as much info on the file as possible
-		and prints it all out.
+	Dump the output of parsing a PE file.
+	Call the parser, getting as much info on the file as possible
+	print Lua valid output.
 	
-	luajit test_peparse.lua filename.dll
+	Usage: luajit pexdump.lua filename.exe
 
 	I can deal with any 'PE' file the parser can handle, typically .dll, .exe.
 ]]
@@ -20,6 +20,7 @@ local mmap = require("peettles.mmap_win32")
 local binstream = require("peettles.binstream")
 local putils = require("peettles.print_utils")
 local COFF = require("peettles.parse_COFF")
+local coff_utils = require("peettles.coff_utils")
 
 
 local filename = arg[1];
@@ -61,55 +62,54 @@ local function printDOSInfo(info)
 	print("---------------------")
 end
 
-local function printPEFileHeader(peinfo, header)
-	print("---- BEGIN PE File Header ----")
+local function printCOFFHeader(peinfo, header)
+	print("---- BEGIN COFF Header ----")
 	print("                Machine: ", string.format("0x%X", header.Machine), peenums.MachineType[header.Machine]);
 	print("     Number Of Sections: ", header.NumberOfSections);
 	print("        Time Date Stamp: ", string.format("0x%X", header.TimeDateStamp));
 	print("Pointer To Symbol Table: ", header.PointerToSymbolTable);
 	print("      Number of Symbols: ", header.NumberOfSymbols);
-	print("Size of Optional Header: ", header.SizeOfOptionalHeader);
-	print(string.format("        Characteristics: 0x%04x  (%s)", header.Characteristics,
+	print("Size of Optional Header: ", string.format("0x%04x (%d)", header.SizeOfOptionalHeader, header.SizeOfOptionalHeader));
+	print("        Characteristics: ", string.format("0x%04x  (%s)", header.Characteristics,
 		enum.bitValues(peenums.Characteristics, header.Characteristics, 32)));
 
-	print("---- END PE File Header ----")
+	print("---- END COFF Header ----")
 
 end
 
 
-local function printDataDirectory(peinfo, directory)
+local function printDataDirectories(peinfo, directory)
 	print("---- BEGIN PE Directory ----")
 	print(string.format("%20s   %10s    %12s  %s", "name", "location", "size (bytes)", "section"))
 
+	--printTable(directory)
+
+
 	for name,dir in pairs(directory) do
+
 		local vaddr = dir.VirtualAddress
 		local sectionName = "UNKNOWN"
-		---[[
+
 		if (vaddr > 0) and (peinfo.Sections ~= nil) then
-			local sec, err = COFF.getEnclosingSection(peinfo.Sections, vaddr)
+			local sec, err = coff_utils.getEnclosingSection(peinfo.Sections, vaddr)
 
 			if sec then
 				sectionName = sec.StringName
 			end
 		end
-		--]]
+
 		print(string.format("%20s   0x%08X    %12s   %s", 
 			name, vaddr, string.format("0x%x (%d)", dir.Size, dir.Size), sectionName))
+
 	end
+
 
 	print("---- END PE Directory ----")
 end
 
-local function printPEOptionalHeader(peinfo, header)
-
-	print("---- PE Optional Header ----")
-
-	if not header then
-		print(" **   NONE  **")
-		return 
-	end
-
-	print("                   Magic: ", string.format("0x%04X",header.Magic))
+local function printPE32CommonOptionalHeader(peinfo, header)
+    print("---- PE Optional Header ----")
+    print("                   Magic: ", string.format("0x%04X",header.Magic))
     print("          Linker Version: ", string.format("%d.%d",header.MajorLinkerVersion, header.MinorLinkerVersion));
 	print("            Size Of Code: ", string.format("0x%08x", header.SizeOfCode))
     print("              Image Base: ", header.ImageBase)
@@ -117,16 +117,49 @@ local function printPEOptionalHeader(peinfo, header)
 	print("          File Alignment: ", header.FileAlignment)
 	print("  Address of Entry Point: ", string.format("0x%08X",header.AddressOfEntryPoint))
 	print(string.format("            Base of Code: 0x%08X", header.BaseOfCode))
+    print("               OSVersion: ", string.format("%d.%d", header.MajorOperatingSystemVersion, header.MinorOperatingSystemVersion))
+    print("           SizeOfHeaders: ", string.format("%d", header.SizeOfHeaders))
+    print("               Subsystem: ", string.format("%s (0x%04X)", peenums.Subsystem[header.Subsystem], header.Subsystem ))
+end
 
-	-- BaseOfData only exists for 32-bit, not 64-bit
+local function printPE32OptionalHeader(peinfo, header)
+    print("---- PE32 Optional Header ----")
+    
+    printPE32CommonOptionalHeader(peinfo, header)
+
 	if header.BaseOfData then
 		print(string.format("            Base of Data: 0x%08X", header.BaseOfData))
 	end
 
+    print(string.format("Number of Rvas and Sizes: 0x%08X (%d)", header.NumberOfRvaAndSizes, header.NumberOfRvaAndSizes))
+
+
+	print("---------------------")
+end
+
+local function printPE32PlusOptionalHeader(peinfo, header)
+
+	print("---- PE 32+ Optional Header ----")
+
+    printPE32CommonOptionalHeader(peinfo, header)
+
+
 	print(string.format("Number of Rvas and Sizes: 0x%08X (%d)", header.NumberOfRvaAndSizes, header.NumberOfRvaAndSizes))
 
-	printDataDirectory(peinfo, header.Directory)
+
 	print("---------------------")
+end
+
+local function printPEHeader(peinfo, header)
+    if (header.isPE32Plus) then
+        printPE32PlusOptionalHeader(peinfo, header)
+    else
+        printPE32OptionalHeader(peinfo, header)
+    end
+
+    --printDataDirectory(peinfo, header.Directory)
+
+    print("---------------------")
 end
 
 local function printSectionHeaders(peinfo, sections)
@@ -151,30 +184,30 @@ local function printSectionHeaders(peinfo, sections)
 end
 
 
-
 local function printImports(info)
-	print("===== IMPORTS =====")
-	--printTable(info.COFF.PEHeader.Directories.ImportTable);
+	--print("'===== IMPORTS =====',")
 
-	if not info.COFF.Imports then return false, "No Imports"; end
+	if not info.PE.Content.Imports then return false, "No Imports"; end
 
-	for k,v in pairs(info.COFF.Imports) do
+	for k,v in pairs(info.PE.Content.Imports) do
 		print(k)
 		for i, name in ipairs(v) do
 			print(string.format("    %s",name))
 		end
+
 	end
-	print("---------------------")
+
+	--print("---------------------")
 end
 
-local function printExports(reader)
+local function printExports(info)
 	print("===== EXPORTS =====")
-	if (not reader.Exports) then
+	if (not info.PE.Content.Exports) then
 		print("  NO EXPORTS")
 		return ;
 	end
 
-	local res = reader.Exports
+	local res = info.PE.Content.Exports
 
 	print("        Export Flags: ", string.format("0x%08X", res.Characteristics))
 	print("     Time Date Stamp: ", string.format("0x%08X", res.TimeDateStamp))
@@ -200,7 +233,7 @@ local function printExports(reader)
 --]]
 
 	print(" = Ordinal Only = ")
-	for k,v in pairs(reader.Exports.OrdinalOnly) do
+	for k,v in pairs(info.PE.Content.Exports.OrdinalOnly) do
 		if type(v) == "string" then
 			print(k, v)
 		else
@@ -209,7 +242,7 @@ local function printExports(reader)
 	end
 
 	print(" = Named Functions =")
-	for i, entry in ipairs(reader.Exports.NamedFunctions) do
+	for i, entry in ipairs(info.PE.Content.Exports.NamedFunctions) do
 		if type(entry.funcptr) == "string" then
 			print(string.format("%4d %4d %50s %s",entry.ordinal, entry.hint, entry.name, entry.funcptr))
 		else 
@@ -222,7 +255,7 @@ end
 
 local function printResources(info)
 	print("==== RESOURCES ====")
-	if not info.Resources then
+	if not info.PE.Content.Resources then
 		print("  NO RESOURCES ")
 		return false;
 	end
@@ -255,19 +288,19 @@ local function printResources(info)
 		printDebug(level, "   Is Directory: ", subdir.isDirectory)
 		printDebug(level, "             ID: ", subdir.ID);
 		
-		-- It is Microsoft convention to used the 
+		-- It is Microsoft convention to use the 
         -- first three levels to indicate: resource type, ID, language ID
         if subdir.level == 1 then
-			printDebug(level, "    Entry ID (KIND): ", subdir.Kind, peenums.ResourceTypes[subdir.Kind])
+			printDebug(level, "Entry ID (KIND): ", subdir.Kind, peenums.ResourceTypes[subdir.Kind])
         elseif subdir.level == 2 then
-			printDebug(level, "    Entry ID (NAME): ", subdir.ItemID)
+			printDebug(level, "Entry ID (NAME): ", subdir.ItemID)
         elseif subdir.level == 3 then
 			printDebug(level, "Entry ID (LANGUAGE): ", subdir.LanguageID)
 		end
 
 		printDebug(level, "Characteristics: ", subdir.Characteristics);
 		printDebug(level, "Time Date Stamp: ", subdir.TimeDateStamp);
-		printDebug(level, "        Version: ", string.format("%d.%02d", subdir.MajorVersion, info.Resources.MinorVersion));
+		printDebug(level, "        Version: ", string.format("%d.%02d", subdir.MajorVersion, info.PE.Content.Resources.MinorVersion));
 		printDebug(level, "  Named Entries: ", subdir.NumberOfNamedEntries);
 		printDebug(level, "     Id Entries: ", subdir.NumberOfIdEntries);
 		printDebug(level, "  == Entries ==")
@@ -288,15 +321,15 @@ local function printResources(info)
 		end
 	end
 
-	printDirectory(info.Resources)
+	printDirectory(info.PE.Content.Resources)
 end
 
 local function printPEInfo(info)
 
 	print("==== PE ====")
 	print("             Signature: ", string.format("%c%c%c%c", info.Signature[0], info.Signature[1], info.Signature[2], info.Signature[3]))
-	printPEFileHeader(info, info.FileHeader)
-	printPEOptionalHeader(info, info.OptionalHeader)
+	printCOFFHeader(info, info.FileHeader)
+	printPEHeader(info, info.OptionalHeader)
 	printSectionHeaders(info, info.Sections)
 	print("=====================")
 end
@@ -316,15 +349,15 @@ local function main()
 		return
 	end
 
-	--printDOSInfo(info.DOS)
+	printDOSInfo(info.DOS)
 	--printPEInfo(info.PE)
 
-
-	printPEFileHeader(info.PE, info.PE.FileHeader)
-	printPEOptionalHeader(info.PE, info.PE.OptionalHeader)
-	printSectionHeaders(info.PE, info.PE.Sections)
+	--printCOFFHeader(info.PE, info.PE.COFFHeader)
+	--printPEHeader(info.PE, info.PE.OptionalHeader)
+	--printDataDirectories(info.PE, info.PE.OptionalHeader.Directory)
+	--printSectionHeaders(info.PE, info.PE.Sections)
 	--printImports(info)
-	--printExports(info)
+	printExports(info)
 	--printResources(info)
 end
 

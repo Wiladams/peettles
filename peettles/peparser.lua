@@ -91,7 +91,7 @@ function peparser.parse(self, ms, res)
     end
 
     -- seek to the PE signature
-    ms:seek(res.DOS.DOSHeader.e_lfanew)
+    ms:seek(res.DOS.Header.e_lfanew)
     
     res.PE = {}
     success, err = parse_PE(ms, res.PE);

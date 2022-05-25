@@ -89,13 +89,13 @@ local function readDirectoryEntry(ms, res)
     return res;
 end
 
-local function readDirectoryData(ms, peinfo, res)
+local function readContentData(ms, peinfo, res)
     res = res or {}
 
     local dirNames = {
-        --Exports = parse_exports;
+        Exports = parse_exports;
         Imports = parse_imports;
-        --Resources = parse_resources;
+        Resources = parse_resources;
     }
 
     for dirName, parseit in pairs(dirNames) do
@@ -195,9 +195,6 @@ local function readPE32Header(ms, res)
 	res.SizeOfHeapCommit = ms:readUInt32();
 	res.LoaderFlags = ms:readUInt32();
 	res.NumberOfRvaAndSizes = ms:readUInt32();
-
-
-
 
     return res;
 end
@@ -618,7 +615,7 @@ local function parse_COFF(ms, res)
     -- Now that we have section information, we should
     -- be able to read detailed directory information
     if res.PEHeader then
-        res.Directory = readDirectoryData(res, ms)
+        res.Content = readContentData(res, ms)
     end
 --]]
 
@@ -632,7 +629,7 @@ local exports = {
     readSectionHeaders = readSectionHeaders,
     readStringTable = readStringTable,
     readSymbolTable = readSymbolTable,
-    readDirectoryData = readDirectoryData,
+    readContentData = readContentData,
     --parse_COFF = parse_COFF,
 }
 

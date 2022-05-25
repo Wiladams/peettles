@@ -102,8 +102,8 @@ end
 local function parse_DOS(ms, res)
     res = res or {}
 
-    res.DOSHeader = {}
-    local success, err = readDOSHeader(ms, res.DOSHeader);
+    res.Header = {}
+    local success, err = readDOSHeader(ms, res.Header);
     if not success then 
         return false, err;
     end
@@ -113,14 +113,14 @@ local function parse_DOS(ms, res)
     -- DOS header, calculated as 'Size of header in paragraphs' * 16 (size of a paragraph)
     -- this is typically going to be 0x40, which is 2 bytes short of where the stream would be after 
     -- reading the header.
-    local StubOffset = res.DOSHeader.HeaderSizeCalculated;
-    local StubSize = res.DOSHeader.e_lfanew - StubOffset;
+    local StubOffset = res.Header.HeaderSizeCalculated;
+    local StubSize = res.Header.e_lfanew - StubOffset;
 
 
     ms:seek(StubOffset);
     local Data = ms:readBytes(StubSize);
 
-    res.DOSStub = {
+    res.Stub = {
         Offset = StubOffset;
         Size = StubSize;
         Data = Data;

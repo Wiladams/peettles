@@ -40,18 +40,18 @@ local function printDOSInfo(pecoff)
     local info = pecoff.DOS;
 
 	print("  DOS = {")
-	print(string.format("                   Magic = '%c%c';", info.DOSHeader.e_magic[0], info.DOSHeader.e_magic[1]))
-	print(string.format("                PEOffset = 0x%04X;", info.DOSHeader.e_lfanew));
-	print(string.format("        HeaderParagraphs = %d", info.DOSHeader.e_cparhdr));
-	print(string.format("            StreamOffset = 0x%04X", info.DOSHeader.StreamOffset));
-	print(string.format("        HeaderSizeActual = 0x%04X;", info.DOSHeader.HeaderSizeActual));
-	print(string.format("    HeaderSizeCalculated = 0x%04X;", info.DOSHeader.HeaderSizeCalculated));
+	print(string.format("                   Magic = '%c%c';", info.Header.e_magic[0], info.Header.e_magic[1]))
+	print(string.format("                PEOffset = 0x%04X;", info.Header.e_lfanew));
+	print(string.format("        HeaderParagraphs = %d", info.Header.e_cparhdr));
+	print(string.format("            StreamOffset = 0x%04X", info.Header.StreamOffset));
+	print(string.format("        HeaderSizeActual = 0x%04X;", info.Header.HeaderSizeActual));
+	print(string.format("    HeaderSizeCalculated = 0x%04X;", info.Header.HeaderSizeCalculated));
 	print("    Stub = {")
-	print(string.format("            Offset = 0x%04X;", info.DOSStub.Offset))
-	print(string.format("              Size = 0x%04x;", info.DOSStub.Size))
+	print(string.format("            Offset = 0x%04X;", info.Stub.Offset))
+	print(string.format("              Size = 0x%04x;", info.Stub.Size))
 	print("              Code = [=[")
-	--disassemble(info.DOSStub);
-	printData(info.DOSStub.Data, info.DOSStub.Size);
+	--disassemble(info.Stub);
+	printData(info.Stub.Data, info.Stub.Size);
 	print("]=];");
 	print("    };")
 	-- print the stub in base64
