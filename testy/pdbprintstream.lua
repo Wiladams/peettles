@@ -16,7 +16,7 @@ local binstream = require("peettles.binstream")
 local readStream = require("peettles.parse_pdb_1")
 
 if not arg[1] or not arg[2] then
-    print("USAGE:  pdb_read_strm.lua filename <number> ")
+    print("USAGE:  pdbprintstream.lua filename <number> ")
     return false;
 end
 

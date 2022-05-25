@@ -72,6 +72,12 @@ foo 'myname' {
 }
 end
 
+--[[
+	Testing whether we can implement a sparse enum.
+	and still do lookups based on the numeric value.
+
+	Turns out this does not really work.
+]]
 local function test_sparse_enum()
 	local SymStorageClass = enum {
 		[0XFF] = "IMAGE_SYM_CLASS_END_OF_FUNCTION";
@@ -86,11 +92,14 @@ local function test_sparse_enum()
 		[107] = "IMAGE_SYM_CLASS_CLR_TOKEN";
 	};
 
-	print(" FUNCTION: ", SymStorageClass[0xff])
-	print("     NULL: ", SymStorageClass[0])
-	print("AUTOMATIC: ", SymStorageClass[1])
-	print("    BLOCK: ", SymStorageClass[100])
-	print("CLR_TOKEN: ", SymStorageClass[107])
+	print("END FUNCTION: ", SymStorageClass[0xff])
+	print("        NULL: ", SymStorageClass[0])
+	print("   AUTOMATIC: ", SymStorageClass[1])
+	print("       BLOCK: ", SymStorageClass[100])
+	print("    FUNCTION: ", SymStorageClass[101])
+	print("        FILE: ", SymStorageClass[103])
+	print("     SECTION: ", SymStorageClass[104])
+	print("   CLR_TOKEN: ", SymStorageClass[107])
 end
 
 --test_namespace()

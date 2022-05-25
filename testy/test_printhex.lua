@@ -27,4 +27,4 @@ local function main(filename)
     putils.printHex {stream = ms, offsetbits = 32, iterations = 256}
 end
 
-main(arg[1])
+print(main(arg[1]))

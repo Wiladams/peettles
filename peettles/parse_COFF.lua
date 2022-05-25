@@ -1,3 +1,7 @@
+--[[
+    PE File Format Spec
+    https://docs.microsoft.com/en-us/windows/win32/debug/pe-format
+]]
 local ffi = require("ffi")
 local bit = require("bit")
 local band = bit.band;
@@ -5,7 +9,7 @@ local lshift = bit.lshift;
 
 local binstream = require("peettles.binstream")
 local peenums = require("peettles.penums")
-local putils = require("peettles.print_utils")
+local coff_utils = require("peettles.coff_utils")
 
 local parse_exports = require("peettles.parse_exports")
 local parse_imports = require("peettles.parse_imports")
@@ -15,60 +19,28 @@ local SymStorageClass = peenums.SymStorageClass;
 local SymSectionNumber = peenums.SymSectionNumber;
 
 
---
--- Given an RVA, look up the section header that encloses it 
--- return the table that represents that section
---
-local section_t = {}
-local section_mt = {
-    __index = section_t;
-}
-function section_t.GetEnclosingSection(sections, rva)
-    --print("==== EnclosingSection: ", rva)
-    for secname, section in pairs(sections) do
-        -- Is the RVA within this section?
-        local pos = rva - section.VirtualAddress;
-        if pos >= 0 and pos < section.VirtualSize then
-            -- return section, and the calculated offset within the section
-            return section, pos 
-        end
-    end
-
-    return false;
-end
-
--- There are many values within the file which are 'RVA' (Relative Virtual Address)
--- In order to translate this RVA into a file offset, we use the following
--- function.
-function section_t.fileOffsetFromRVA(self, rva)
-    local section, pos = self:GetEnclosingSection(rva);
-    if not section then return false, "section not found for rva"; end
-    
-    local fileOffset = section.PointerToRawData + pos;
-    
-    return fileOffset
-end
-
-local function stringFromBuff(buff, size)
-	local truelen = size
-	for i=size-1,0,-1 do
-		if buff[i] == 0 then
-		    truelen = truelen - 1
-		end
-	end
-	return ffi.string(buff, truelen)
-end
-
+-- IMAGE_SECTION_HEADER
+-- https://docs.microsoft.com/en-us/windows/win32/debug/pe-format#section-header-format
 function readSectionHeaders(ms, res, nsections)
     res = res or {}
 
+    --print("readSectionHeaders: ", nsections)
+
+    if (nsections < 1) then
+        return res
+    end
+
+    -- should be 40 bytes per section header
+    
     for i=1,nsections do
+        local sentinel = ms:tell()
+
         local sec = {
             Name = ms:readBytes(8);
             VirtualSize = ms:readDWORD();
             VirtualAddress = ms:readDWORD();
             SizeOfRawData = ms:readDWORD();
-            PointerToRawData = ms:readDWORD();
+            PointerToRawData = ms:readDWORD();      -- File based offset to raw data
             PointerToRelocations = ms:readDWORD();
             PointerToLinenumbers = ms:readDWORD();
             NumberOfRelocations = ms:readWORD();
@@ -76,15 +48,16 @@ function readSectionHeaders(ms, res, nsections)
             Characteristics = ms:readDWORD();
         }
 
-        -- NOTE: Not sure if we should use all 8 bytes or null terminate
-        -- the spec says use 8 bytes, don't assume null terminated ASCII
-        -- in practice, these are usually ASCII strings.
-        -- They could be UNICODE, or any 8 consecutive bytes.  Since
-        -- Lua doesn't really care, I suppose the right thing to do is
-        -- use all 8 bytes, and only create a 'pretty' name for display purposes
+        -- NOTE: The Name field is 8 bytes long.  It can 
+        -- contain anything, including unicode.  We keep the
+        -- raw byte array, and create a hopefully printable
+        -- version in the StringName field.
+		sec.StringName = coff_utils.stringFromBuff(sec.Name, 8)
 
-		sec.Name = stringFromBuff(sec.Name, 8)
---print("Section: ", sec.Name)
+        --print("  section: ", string.format("ID: %d, %s  0x%x", i-1, sec.StringName, sentinel))
+
+        -- We capture the raw section data as well so that
+        -- consumers can further parse this data if they wish.
         if sec.SizeOfRawData > 0 then
             local ds = ms:range(sec.SizeOfRawData, sec.PointerToRawData)
             sec.Data = ds:readBytes(sec.SizeOfRawData)
@@ -92,42 +65,41 @@ function readSectionHeaders(ms, res, nsections)
 
         table.insert(res, sec)
     end
+    --setmetatable(res, section_mt)
 
 	return res
 end
 
-local function readSectionData(ms, section)
-    ms:seek(section.PointerToRawData)
-    local bytes = ms:readBytes(section.SizeOfRawData)
-
-    return bytes, section.SizeOfRawData
-end
 
 --[[
     In the context of a PEHeader, a directory is a simple
     structure containing a virtual address, and a size
+    IMAGE_DIRECTORY_ENTRY_XXX
 ]]
-local function readDirectoryEntry(ms, id, res)
+local function readDirectoryEntry(ms, res)
+    --print("readDirectoryEntry(): ", id)
+
     res = res or {}
     
     res.ID = id;
     res.VirtualAddress = ms:readDWORD();
     res.Size = ms:readDWORD();
 
+    --print("readDirectoryEntry: ", res.id, res.VirtualAddress, res.Size)
     return res;
 end
 
-local function readDirectoryData(coffinfo, ms, res)
+local function readDirectoryData(ms, peinfo, res)
     res = res or {}
 
     local dirNames = {
-        Exports = parse_exports;
+        --Exports = parse_exports;
         Imports = parse_imports;
-        Resources = parse_resources;
+        --Resources = parse_resources;
     }
 
     for dirName, parseit in pairs(dirNames) do
-        local success, err = parseit(ms, coffinfo);
+        local success, err = parseit(ms, peinfo);
         if success then
             res[dirName] = success;
         else
@@ -140,11 +112,12 @@ end
 
 -- Within the context of the OptionalHeader
 -- Read the IMAGE_DATA_DIRECTORY entries
-function readDirectoryTable(ms, res)
+function readDirectoryTable(bs, res)
+    --print("==== readDirectoryTable ====")
     res = res or {}
 
     -- List of directories in the order
--- they show up in the file
+    -- they show up in the file
     local dirNames = {
     "ExportTable",
     "ImportTable",
@@ -166,10 +139,15 @@ function readDirectoryTable(ms, res)
     
     -- Read directory index entries
     for i, name in ipairs(dirNames) do
-        local dir = readDirectoryEntry(ms, i-1);
-        if dir.Size ~= 0 then
+        local dir = {id=i-1}
+        --print("Reading directory: ", name, string.format("0x%x ", bs:tell()))
+        local success, err = readDirectoryEntry(bs, dir);
+
+        if success and (dir.Size ~= 0) then
             dir.Name = name;
-            -- get the section as well
+
+            -- make the directory entry accessible in the results
+            -- table
             res[name] = dir;
         end
     end
@@ -219,15 +197,14 @@ local function readPE32Header(ms, res)
 	res.NumberOfRvaAndSizes = ms:readUInt32();
 
 
-    -- Read directory index entries
-    -- Only save the ones that actually
-    -- have data in them
-    res.Directories = readDirectoryTable(ms);
+
 
     return res;
 end
 
 local function readPE32PlusHeader(ms, res)
+    --print("==== readPE32PlusHeader ====")
+
     res = res or {}
 
     res.isPE32Plus = true;
@@ -265,15 +242,17 @@ local function readPE32PlusHeader(ms, res)
 		res.LoaderFlags = ms:readUInt32();
 		res.NumberOfRvaAndSizes = ms:readUInt32();
 
-
-    res.Directories = readDirectoryTable(ms);
-
     return res;
 end
 
-
-
-function readPEOptionalHeader(ms, res)
+--
+-- IMAGE_OPTIONAL_HEADER
+--  magic
+--    0x010b = PE32
+--    0x020b = PE32+
+--
+function readOptionalHeader(ms, res)
+    --print("==== readOptionalHeader ====")
     res = res or {}
 
     local function IsPe32Header(sig)
@@ -300,6 +279,7 @@ function readPEOptionalHeader(ms, res)
     -- unwind reading the magic so we can read it again
     -- as part of reading the whole 'optional' header
     ms:seek(ms:tell()-2);
+    --print("before readPE32Header: ", string.format("0x%x", ms:tell()))
 
 
     if IsPe32Header(pemagic) then
@@ -307,6 +287,14 @@ function readPEOptionalHeader(ms, res)
     elseif IsPe32PlusHeader(pemagic) then
         readPE32PlusHeader(ms, res);
     end
+
+        -- Read directory index entries
+    -- Only save the ones that actually
+    -- have data in them
+    --print("before readDirectoryEntries: ", string.format("0x%x", ms:tell()))
+    res.Directory = {}
+    local success, err = readDirectoryTable(ms, res.Directory);
+
 
     return res;
 end 
@@ -376,7 +364,7 @@ print("AUX - Weak External")
     if symbol.StorageClass == SymStorageClass.IMAGE_SYM_CLASS_FILE then
         local bytes = ms:readBytes(SizeOfSymbol)
         res.Kind = 4;
-        res.FileName = stringFromBuff(bytes, SizeOfSymbol)
+        res.FileName = coff_utils.stringFromBuff(bytes, SizeOfSymbol)
 print("AUX - FILE: ", res.FileName)
 
         return res;
@@ -411,6 +399,12 @@ end
 -- nSims includes number of auxilary symbols
 local function readSymbolTable(ms, nSims, strTableSize, res)
     res = res or {}
+
+    -- If there are no symbols, then we are done
+    if nSims == 0 then
+        return res;
+    end
+
     local actualSims = 0;
     local symStart = ms:tell();
     local strTableStart = symStart + nSims * SizeOfSymbol;
@@ -440,7 +434,7 @@ local function readSymbolTable(ms, nSims, strTableSize, res)
         -- then it is a string lookup, otherwise
         -- it's a name <= 8 bytes
         if sym.Name[0] ~= 0 then
-            sym.Name = stringFromBuff(sym.Name, 8);
+            sym.Name = coff_utils.stringFromBuff(sym.Name, 8);
         else
             -- calculate offset within string table
             local idx = sym.Name[4]+
@@ -471,24 +465,29 @@ local function readSymbolTable(ms, nSims, strTableSize, res)
 end
 
 local function readStringTable(ms, res)
+    print("==== readStringTable ====")
+
     res = res or {}
 
     -- first read a size
     local sizeOfTable = ms:readUInt32();
+
+    print("  SIZE OF TABLE: ", sizeOfTable)
+    
     if sizeOfTable <= 4 then
         return false, "No Strings in Table";
     end
 
-    --print("SIZE OF TABLE: ", sizeOfTable)
+
     local ns, err = ms:range(sizeOfTable-4)
     if not ns then
-        --print("ERROR: ", err, sizeOfTable, ms.size, ms.cursor)
+        print("ERROR: ", err, sizeOfTable, ms.size, ms.cursor)
         return false, err;
     end
 
     while true do
         local str, err = ns:readString();
-        --print("RST: ", str, err)
+        print("  RST: ", str, err)
         if not str then
             break;
         end
@@ -537,35 +536,37 @@ print(string.format("Machine: 0x%04X", res.Machine))
     return res;
 end
 
+-- IMAGE_FILE_HEADER
 -- Windows loader used to limit to 96
 -- but now (as of Windows 10), it can be the full 
 -- range of 16-bit number (65535)
-local function readHeader(ms, res)
+-- Machine
+--  0x014C - Intel 386
+--  0x014D - Intel 486
+--  0x0200 - Intel Itanium
+--  0x8664 - AMD64
+
+local function readCOFFHeader(bs, res)
 
     res = res or {}
 
-    res.Machine = ms:readWORD();
-    res.NumberOfSections = ms:readWORD();     
-    res.TimeDateStamp = ms:readDWORD();
-    res.PointerToSymbolTable = ms:readDWORD();
-    res.NumberOfSymbols = ms:readDWORD();
-    res.SizeOfOptionalHeader = ms:readWORD();
-    res.Characteristics = ms:readWORD();
-
---[[
-    print("== COFF HEADER ==")
-    print("Machine:", string.format("0x%x", res.Machine))
-    print("nSections: ", res.NumberOfSections)
-    print("nSymbols: ", res.NumberOfSymbols)
-    print("SizeOfOptionalHeader: ", res.SizeOfOptionalHeader)
---]]
+    res.HeaderStart = bs:tell();
+    res.Machine = bs:readWORD();
+    res.NumberOfSections = bs:readWORD();     
+    res.TimeDateStamp = bs:readDWORD();
+    res.PointerToSymbolTable = bs:readDWORD();
+    res.NumberOfSymbols = bs:readDWORD();
+    res.SizeOfOptionalHeader = bs:readWORD();
+    res.Characteristics = bs:readWORD();
 
     return res;
 end
 
 
-
+-- IMAGE_NT_HEADERS
 local function parse_COFF(ms, res)
+    print("==== parse_COFF ====")
+
     res = res or {}
 
     local fileStart = ms:tell();
@@ -592,8 +593,10 @@ local function parse_COFF(ms, res)
     end
 
     -- Now offset should be positioned at the section table
-    hdr.Sections = readSectionHeaders(ms, nil, hdr.NumberOfSections)
-    setmetatable(hdr.Sections, section_mt)
+    hdr.Sections = {}
+    local success, err = readSectionHeaders(ms, hdr.Sections, hdr.NumberOfSections)
+    --setmetatable(hdr.Sections, section_mt)
+
 
     -- Either read the string table before the symbol
     -- table, or do fixups afterwards
@@ -622,4 +625,15 @@ local function parse_COFF(ms, res)
     return res;
 end
 
-return parse_COFF;
+local exports = {
+    readImportHeader = readImportHeader,
+    readCOFFHeader = readCOFFHeader,
+    readOptionalHeader = readOptionalHeader,
+    readSectionHeaders = readSectionHeaders,
+    readStringTable = readStringTable,
+    readSymbolTable = readSymbolTable,
+    readDirectoryData = readDirectoryData,
+    --parse_COFF = parse_COFF,
+}
+
+return exports;

@@ -56,6 +56,12 @@ function binstream.new(self, data, size, position, littleendian)
     return self:init(data, size, position, littleendian);
 end
 
+function binstream.clone(self, offset)
+    offset = offset or self._cursor
+
+    return binstream(self.data, self.size, offset, not self.bigend);
+end
+
 -- get a subrange of the memory stream
 -- returning a new memory stream
 function binstream.range(self, size, pos)

@@ -1,5 +1,10 @@
 package.path = "../?.lua;"..package.path
 
+--[[
+
+Demonstrate the usage of the FileSystem class.
+
+]]
 -- test_filelist.lua
 local FileSystem = require("FileSystem");
 
@@ -41,5 +46,5 @@ local function list_directories()
 end
 
 --test_single();
-test_multiple();
---list_directories();
+--test_multiple();
+list_directories();

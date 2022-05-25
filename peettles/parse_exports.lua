@@ -9,10 +9,10 @@ local binstream = require("peettles.binstream")
 local peenums = require("peettles.penums")
 local putils = require("peettles.print_utils")
 
-local function parse(bs, coffinfo, res)
+local function parse(bs, peinfo, res)
 
     --print("==== readDirectory_Export ====")
-    local dirTable = coffinfo.PEHeader.Directories.ExportTable
+    local dirTable = peinfo.OptionalHeader.Directory.ExportTable
     if not dirTable then 
         return false , "NO EXPORT TABLE FOUND"
     end
@@ -30,7 +30,7 @@ local function parse(bs, coffinfo, res)
     -- We need to turn the VirtualAddress into an actual file offset
     -- We also want to know what section the export table is in for 
     -- forwarding comparisons
-    local sections = coffinfo.Sections;
+    local sections = peinfo.Sections;
     local exportSection = sections:GetEnclosingSectionHeader(dirTable.VirtualAddress)
     local exportSectionName = exportSection.Name;
 

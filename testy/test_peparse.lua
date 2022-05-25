@@ -14,11 +14,12 @@ local ffi = require("ffi")
 local bit = require("bit")
 
 local enum = require("peettles.enum")
-local peinfo = require("peettles.peparser")
+local peparser = require("peettles.peparser")
 local peenums = require("peettles.penums")
 local mmap = require("peettles.mmap_win32")
 local binstream = require("peettles.binstream")
 local putils = require("peettles.print_utils")
+local COFF = require("peettles.parse_COFF")
 
 
 local filename = arg[1];
@@ -40,95 +41,102 @@ local function printData(data, size)
     }
 end
 
+function printTable(t)
+	print("==== printTable ====")
+
+	for k,v in pairs(t) do
+		print(k,v)
+	end
+end
+
 local function printDOSInfo(info)
 	print("==== DOS ====")
+
 	print("    Magic: ", string.format("%c%c", info.DOSHeader.e_magic[0], info.DOSHeader.e_magic[1]))
 	print("PE Offset: ", string.format("0x%04x", info.DOSHeader.e_lfanew));
-	print("Stub Size: ", string.format("0x%04x (%d)", info.DOSStubSize, info.DOSStubSize))
+	print("Stub Size: ", string.format("0x%04x (%d)", info.DOSStub.Size, info.DOSStub.Size))
+
 	-- print the stub in hex
-	printData(info.DOSStub, info.DOSStubSize);
+	printData(info.DOSStub.Data, info.DOSStub.Size);
 	print("---------------------")
 end
 
-local function printCOFF(reader)
-	local info = reader.COFF;
+local function printPEFileHeader(peinfo, header)
+	print("---- BEGIN PE File Header ----")
+	print("                Machine: ", string.format("0x%X", header.Machine), peenums.MachineType[header.Machine]);
+	print("     Number Of Sections: ", header.NumberOfSections);
+	print("        Time Date Stamp: ", string.format("0x%X", header.TimeDateStamp));
+	print("Pointer To Symbol Table: ", header.PointerToSymbolTable);
+	print("      Number of Symbols: ", header.NumberOfSymbols);
+	print("Size of Optional Header: ", header.SizeOfOptionalHeader);
+	print(string.format("        Characteristics: 0x%04x  (%s)", header.Characteristics,
+		enum.bitValues(peenums.Characteristics, header.Characteristics, 32)));
 
-	print("==== COFF ====")
-	print("                Machine: ", string.format("0x%X", info.Machine), peenums.MachineType[info.Machine]);
-	print("     Number Of Sections: ", info.NumberOfSections);
-	print("        Time Date Stamp: ", string.format("0x%X", info.TimeDateStamp));
-	print("Pointer To Symbol Table: ", info.PointerToSymbolTable);
-	print("      Number of Symbols: ", info.NumberOfSymbols);
-	print("Size of Optional Header: ", info.SizeOfOptionalHeader);
-	print(string.format("        Characteristics: 0x%04x  (%s)", info.Characteristics,
-		enum.bitValues(peenums.Characteristics, info.Characteristics, 32)));
-	print("---------------------")
+	print("---- END PE File Header ----")
+
 end
 
---[[
-    print("==== readPE32PlusHeader ====")
 
+local function printDataDirectory(peinfo, directory)
+	print("---- BEGIN PE Directory ----")
+	print(string.format("%20s   %10s    %12s  %s", "name", "location", "size (bytes)", "section"))
 
-    print("      Size of Image: ", self.PEHeader.SizeOfImage)
-    print("    Size of Headers: ", self.PEHeader.SizeOfHeaders)
-    print("       Loader Flags: ", self.PEHeader.LoaderFlags)
+	for name,dir in pairs(directory) do
+		local vaddr = dir.VirtualAddress
+		local sectionName = "UNKNOWN"
+		---[[
+		if (vaddr > 0) and (peinfo.Sections ~= nil) then
+			local sec, err = COFF.getEnclosingSection(peinfo.Sections, vaddr)
 
---]]
+			if sec then
+				sectionName = sec.StringName
+			end
+		end
+		--]]
+		print(string.format("%20s   0x%08X    %12s   %s", 
+			name, vaddr, string.format("0x%x (%d)", dir.Size, dir.Size), sectionName))
+	end
 
-local function printOptionalHeader(browser)
-	local info = browser.PEHeader
-	print("==== Optional Header ====")
-	
-	if not info then
+	print("---- END PE Directory ----")
+end
+
+local function printPEOptionalHeader(peinfo, header)
+
+	print("---- PE Optional Header ----")
+
+	if not header then
 		print(" **   NONE  **")
 		return 
 	end
 
+	print("                   Magic: ", string.format("0x%04X",header.Magic))
+    print("          Linker Version: ", string.format("%d.%d",header.MajorLinkerVersion, header.MinorLinkerVersion));
+	print("            Size Of Code: ", string.format("0x%08x", header.SizeOfCode))
+    print("              Image Base: ", header.ImageBase)
+    print("       Section Alignment: ", header.SectionAlignment)
+	print("          File Alignment: ", header.FileAlignment)
+	print("  Address of Entry Point: ", string.format("0x%08X",header.AddressOfEntryPoint))
+	print(string.format("            Base of Code: 0x%08X", header.BaseOfCode))
 
-	print("                   Magic: ", string.format("0x%04X",info.Magic))
-    print("          Linker Version: ", string.format("%d.%d",info.MajorLinkerVersion, info.MinorLinkerVersion));
-	print("            Size Of Code: ", string.format("0x%08x", info.SizeOfCode))
-    print("              Image Base: ", info.ImageBase)
-    print("       Section Alignment: ", info.SectionAlignment)
-	print("          File Alignment: ", info.FileAlignment)
-	print("  Address of Entry Point: ", string.format("0x%08X",info.AddressOfEntryPoint))
-	print(string.format("            Base of Code: 0x%08X", info.BaseOfCode))
 	-- BaseOfData only exists for 32-bit, not 64-bit
-	if info.BaseOfData then
-		print(string.format("            Base of Data: 0x%08X", info.BaseOfData))
+	if header.BaseOfData then
+		print(string.format("            Base of Data: 0x%08X", header.BaseOfData))
 	end
 
-	print(string.format("Number of Rvas and Sizes: 0x%08X (%d)", info.NumberOfRvaAndSizes, info.NumberOfRvaAndSizes))
+	print(string.format("Number of Rvas and Sizes: 0x%08X (%d)", header.NumberOfRvaAndSizes, header.NumberOfRvaAndSizes))
+
+	printDataDirectory(peinfo, header.Directory)
 	print("---------------------")
 end
 
-local function printDataDirectory(reader, dirs)
-	local dirs = reader.PEHeader.Directories
-	print("==== Directory Entries ====")
-	print(string.format("%20s   %10s    %12s  %s",
-		"name", "location", "size (bytes)", "section"))
-	for name,dir in pairs(dirs) do
-		--print(name, dir)
-		local vaddr = dir.VirtualAddress
-		local sectionName = "UNKNOWN"
-		if vaddr > 0 then
-			local sec = reader:GetEnclosingSectionHeader(vaddr)
-			if sec then
-				sectionName = sec.Name
-			end
-		end
-		print(string.format("%20s   0x%08X    %12s   %s", 
-			name, vaddr, string.format("0x%x (%d)", dir.Size, dir.Size), sectionName))
-	end
-	print("---------------------")
-end
+local function printSectionHeaders(peinfo, sections)
+	print("---- BEGIN PE Sections ----")
 
-local function printSectionHeaders(reader)
-	print("===== SECTIONS =====")
-	for name,section in pairs(reader.Sections) do
-		print("Name: ", name)
-		print(string.format("            Virtual Size: %d", section.VirtualSize))
+	for name,section in pairs(sections) do
+		print(".....................")
+		print(string.format("             String Name: %s", section.StringName))
 		print(string.format("         Virtual Address: 0x%08X", section.VirtualAddress))
+		print(string.format("            Virtual Size: %d", section.VirtualSize))
 		print(string.format("        Size of Raw Data: 0x%08X (%d)", section.SizeOfRawData, section.SizeOfRawData))
 		print(string.format("     Pointer to Raw Data: 0x%08X", section.PointerToRawData))
 		print(string.format("  Pointer to Relocations: 0x%08X", section.PointerToRelocations))
@@ -137,15 +145,20 @@ local function printSectionHeaders(reader)
 		print(string.format("  Number of Line Numbers: %d", section.NumberOfLinenumbers))
 		print(string.format("         Characteristics: 0x%08X  (%s)", section.Characteristics, 
 			enum.bitValues(peenums.SectionCharacteristics, section.Characteristics)))
+
 	end
-	print("---------------------")
+	print("---- END PE Sections ----")
 end
 
-local function printImports(reader)
-	print("===== IMPORTS =====")
-	if not reader.Imports then return false, "No Imports"; end
 
-	for k,v in pairs(reader.Imports) do
+
+local function printImports(info)
+	print("===== IMPORTS =====")
+	--printTable(info.COFF.PEHeader.Directories.ImportTable);
+
+	if not info.COFF.Imports then return false, "No Imports"; end
+
+	for k,v in pairs(info.COFF.Imports) do
 		print(k)
 		for i, name in ipairs(v) do
 			print(string.format("    %s",name))
@@ -278,6 +291,16 @@ local function printResources(info)
 	printDirectory(info.Resources)
 end
 
+local function printPEInfo(info)
+
+	print("==== PE ====")
+	print("             Signature: ", string.format("%c%c%c%c", info.Signature[0], info.Signature[1], info.Signature[2], info.Signature[3]))
+	printPEFileHeader(info, info.FileHeader)
+	printPEOptionalHeader(info, info.OptionalHeader)
+	printSectionHeaders(info, info.Sections)
+	print("=====================")
+end
+
 
 local function main()
 	local mfile = mmap(filename);
@@ -285,20 +308,24 @@ local function main()
 		print("Error trying to map: ", filename)
 	end
 
-	local info, err = peinfo:fromData(mfile:getPointer(), mfile.size);
+	local bs = binstream(mfile:getPointer(), mfile.size, 0, true);
+	local info, err = peparser:fromStream(bs);
+
 	if not info then
-		print("ERROR: fromData - ", err)
+		print("ERROR: fromStream - ", err)
 		return
 	end
 
-	printDOSInfo(info.DOS)
-	printCOFF(info)
-	printOptionalHeader(info)
-	printDataDirectory(info)
-	printSectionHeaders(info)
-	printImports(info)
-	printExports(info)
-	printResources(info)
+	--printDOSInfo(info.DOS)
+	--printPEInfo(info.PE)
+
+
+	printPEFileHeader(info.PE, info.PE.FileHeader)
+	printPEOptionalHeader(info.PE, info.PE.OptionalHeader)
+	printSectionHeaders(info.PE, info.PE.Sections)
+	--printImports(info)
+	--printExports(info)
+	--printResources(info)
 end
 
 main()

@@ -8,6 +8,8 @@ local ffi = require("ffi")
 
 local _WIN64 = (ffi.os == "Windows") and ffi.abi("64bit");
 
+
+
 ffi.cdef[[
 typedef char          	CHAR;
 typedef unsigned char	UCHAR;

@@ -1,6 +1,7 @@
 local pow = math.pow
 local bit = require("bit")
 local lshift, rshift, band, bor = bit.lshift, bit.rshift, bit.band, bit.bor
+local ffi = require("ffi")
 
 --[[
 -- metatable for enums
@@ -71,7 +72,7 @@ function enum.enumbits(tbl, bitsValue, bitsSize)
 
 		while(true) do
 			local mask = pow(2,state)
-			local maskedValue = band(mask, params.bitsValue)
+			local maskedValue = tonumber(ffi.cast("uint32_t",band(mask, params.bitsValue)))
 --print(string.format("(%2d) MASK [%x] - %#x", state, mask, maskedValue))			
 			if maskedValue ~= 0 then
 				return state + 1, params.tbl[maskedValue] or "UNKNOWN"

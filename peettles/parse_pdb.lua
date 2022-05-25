@@ -49,10 +49,10 @@ end
 
 local streamNames = {
 	[0] = "Root";
-	"PDB";
-	"TPI";
-	"DBI";
-	"NameMap";
+	[1] = "PDB";
+	[2] = "TPI";
+	[3] = "DBI";
+	[4] = "NameMap";
 }
 
 --[[

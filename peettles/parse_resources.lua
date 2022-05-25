@@ -11,9 +11,9 @@ local putils = require("peettles.print_utils")
 
 
 
-local function parseResources(self, restbl)
+local function parse_resources(parser, restbl)
     -- lookup the entry for the resource directory
-    local dirTable = self.PEHeader.Directories.ResourceTable
+    local dirTable = parser.PEHeader.Directories.ResourceTable
     if not dirTable then 
         return false, "ResourceTable directory not found" 
     end
@@ -21,8 +21,8 @@ local function parseResources(self, restbl)
     restbl = restbl or {}
     
     -- find the associated section
-    local resourcedirectoryOffset = self:fileOffsetFromRVA(dirTable.VirtualAddress)
-    local bs = self.SourceStream:range(dirTable.Size, resourcedirectoryOffset)
+    local resourcedirectoryOffset = parser:fileOffsetFromRVA(dirTable.VirtualAddress)
+    local bs = parser.SourceStream:range(dirTable.Size, resourcedirectoryOffset)
 
 
     -- Reading the resource hierarchy is recursive
@@ -138,4 +138,4 @@ local function parseResources(self, restbl)
     return restbl;
 end
 
-return parseResources
+return parse_resources

@@ -93,6 +93,7 @@ function TextStream.peekDigit(self, office)
     return false, "character not peek'd"
 end
 
+-- retrieve a single octet from the stream
 function TextStream.get(self)
     if self.Stream:isEOF() then
         return false, "EOF";
@@ -101,10 +102,13 @@ function TextStream.get(self)
     return self.Stream:readOctet();
 end
 
+-- put an octet back into the stream, simply move cursor back
+-- by one position
 function TextStream.unget(self, achar)
     return self.Stream:seek(self.Stream:tell()-1)
 end
 
+-- skip over the specified number of octets
 function TextStream.trim(self, n)
     return self.Stream:skip(n)
 end

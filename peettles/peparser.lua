@@ -7,7 +7,12 @@
     Typical usage on a Windows platform would be:
 
     local mfile = mmap(filename);
-	local peparser = peparser:fromData(mfile:getPointer(), mfile.size);
+	local peinfo = peparser:fromData(mfile:getPointer(), mfile.size);
+
+    or
+    local bs = binstream(mfile:getPointer(), mfile.size, 0, true);
+    local peinfo = peparser:fromStream(bs);
+
 
     Once the peparser object has been constructed, it will already 
     contain the contents in an easily navigable form.
@@ -21,7 +26,7 @@ local peenums = require("peettles.penums")
 
 local parse_DOS = require("peettles.parse_DOS")
 local parse_COFF = require("peettles.parse_COFF")
-
+local parse_PE = require("peettles.parse_PE")
 
 
 local peparser = {}
@@ -46,11 +51,15 @@ function peparser.create(self, obj)
     return self:init(obj)
 end
 
+function peparser.fromStream(self, bs)
+    local obj = self:create();
+
+    return obj:parse(bs);
+end
+
 function peparser.fromData(self, data, size)
     local ms = binstream(data, size, 0, true);
-    local obj = self:create()
-
-    return obj:parse(ms)
+    return self:fromStream(ms);
 end
 
 --[[
@@ -66,38 +75,35 @@ local function IsPEFormatImageFile(sig)
         sig[3] == 0
 end
 
-function peparser.parse(self, ms)
-    self.SourceStream = ms;
-    self._data = ms.data;
-    self._size = ms.size;
+function peparser.parse(self, ms, res)
+    local res = res or {}
+    res.SourceStream = ms;
+    res._data = ms.data;
+    res._size = ms.size;
 
     local err = false;
-    self.DOS, err = parse_DOS(ms);
+    res.DOS = {}
+    local success, err = parse_DOS(ms, res.DOS);
 
-    if not self.DOS then 
-        return false, err;
+    -- If we did not find a DOS header, then we are not a PE file.
+    if not success then 
+        return false, err, res;
     end
 
     -- seek to the PE signature
-    -- The stream should now be located at the 'PE' signature
-    -- we assume we can only read Portable Executable
-    -- anything else is an error
-
-    ms:seek(self.DOS.DOSHeader.e_lfanew)
+    ms:seek(res.DOS.DOSHeader.e_lfanew)
     
-    -- We expect to see 'PE' as an indicator that what is
-    -- to follow is in fact a PE file.  If not, we quit early
-    local ntheadertype = ms:readBytes(4);
-    if not IsPEFormatImageFile(ntheadertype) then
-        return false, "not PE Format Image File"
+    res.PE = {}
+    success, err = parse_PE(ms, res.PE);
+
+    -- If we did not successfully parse the PE file
+    -- return error, and whatever we did manage to parse
+    if not success then 
+        return false, err, res;
     end
 
-    self.Signature = ntheadertype;
 
-    self.COFF, err = parse_COFF(ms);
-
-
-    return self
+    return res
 end
 
 

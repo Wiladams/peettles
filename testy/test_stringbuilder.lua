@@ -1,6 +1,6 @@
 package.path = package.path..";../?.lua";
 
-local StringBuilder = require("stringbuilder")
+local StringBuilder = require("peettles.stringbuilder")
 
 local function testAppend()
     print("==== testAppend() ====")
@@ -76,9 +76,10 @@ local function testLineEnding()
 
     local sb1 = StringBuilder();
 
-print("StringBuilder: ", StringBuilder, "sb1: ", sb1)
+--print("StringBuilder: ", StringBuilder, "sb1: ", sb1)
 
     sb1:append("the quick")
+    sb1:append("brown")
     sb1:append("fox")
     sb1:append("jumps over")
     sb1:append("the lazy dogs")
@@ -87,9 +88,9 @@ print("StringBuilder: ", StringBuilder, "sb1: ", sb1)
     print(sb1:toString("\n"))
 end
 
---testAppend();
+testAppend();
 testEmpty();
---testLineEnding();
---testMetaAdd();
+testLineEnding();
+testMetaAdd();
 --testMetaConcatStrings();
 --testMetaConcatSBuilder();
