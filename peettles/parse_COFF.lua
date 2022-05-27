@@ -103,7 +103,7 @@ local function readContentData(ms, peinfo, res)
         if success then
             res[dirName] = success;
         else
-            print("ERROR PARSING: ", dirName, err);
+            --print("ERROR PARSING: ", dirName, err);
         end
     end
 

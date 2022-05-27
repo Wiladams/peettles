@@ -184,17 +184,21 @@ local function printSectionHeaders(peinfo, sections)
 end
 
 
-local function printImports(info)
+
+local function printImports(info, hideFunctions)
 	--print("'===== IMPORTS =====',")
 
 	if not info.PE.Content.Imports then return false, "No Imports"; end
 
+
 	for k,v in pairs(info.PE.Content.Imports) do
 		print(k)
-		for i, name in ipairs(v) do
-			print(string.format("    %s",name))
-		end
+		if not hideFunctions then
+			for i, name in ipairs(v) do
+				print(string.format("    %s",name))
+			end
 
+		end
 	end
 
 	--print("---------------------")
@@ -357,7 +361,8 @@ local function main()
 	--printDataDirectories(info.PE, info.PE.OptionalHeader.Directory)
 	--printSectionHeaders(info.PE, info.PE.Sections)
 	--printImports(info)
-	printExports(info)
+	printImports(info, true)
+	--printExports(info)
 	--printResources(info)
 end
 

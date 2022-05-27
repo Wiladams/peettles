@@ -11,17 +11,19 @@ local FileSystem_mt = {
 	__index = FileSystem;
 }
 
-function FileSystem.init(self, starting)
+function FileSystem.init(self, basepath, filter)
 	local obj = {
-		RootItem = FileSystemItem({Name = starting});
+		RootItem = FileSystemItem({
+			BasePath = basepath,
+			Filter = filter});
 	};
 	setmetatable(obj, FileSystem_mt);
 
 	return obj;
 end
 
-function FileSystem.create(self, starting)
-	return self:init(starting);
+function FileSystem.create(self, basepath, filter)
+	return self:init(basepath, filter);
 end
 
 function FileSystem.getItem(self, pattern)

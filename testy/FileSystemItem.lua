@@ -181,13 +181,15 @@ local FileSystemItem_mt = {
 
 FileSystemItem.new = function(self, params)
 	params = params or {}
+	params.BasePath = params.BasePath or ".";
+
 	setmetatable(params, FileSystemItem_mt);
 
 	return params;
 end
 
 function FileSystemItem.getFullPath(self)
-	local fullpath = self.Name;
+	local fullpath = self.BasePath;
 
 	if self.Parent then
 		fullpath = self.Parent:getFullPath().."\\"..fullpath;
@@ -197,7 +199,7 @@ function FileSystemItem.getFullPath(self)
 end
 
 function FileSystemItem.getPath(self)
-	local fullpath = self.Name;
+	local fullpath = self.BasePath;
 
 	if self.Parent and self.Parent.Name:find(":") == nil then
 		fullpath = self.Parent:getFullPath().."\\"..fullpath;

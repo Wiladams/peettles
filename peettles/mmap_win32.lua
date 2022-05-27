@@ -72,7 +72,8 @@ function mmap:__new(filename, newsize)
     --print("    File Handle: ", m.filehandle)
     
     if m.filehandle == INVALID_HANDLE_VALUE then
-		error("Could not create/open file for mmap: "..tostring(ffi.C.GetLastError()))
+		return nil, "Failed to open file"
+		--error("Could not create/open file for mmap: "..tostring(ffi.C.GetLastError()))
 	end
 	
     -- Set file size if new
