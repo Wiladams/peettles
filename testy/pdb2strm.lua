@@ -1,3 +1,7 @@
+--[[
+    Take a single .pdb file, and split it out into a series of .strm files.
+    Will create a directory as part of the process.
+]]
 package.path = "../?.lua;"..package.path
 
 local ffi = require("ffi")
@@ -50,6 +54,7 @@ end
 -- Split a file path into constituent parts
 -- This works for very simple cases, just enough to prototype
 -- Returns the Path, Filename, and Extension as 3 values
+
 function SplitFilename(strFilename)
 	return string.match(strFilename, "(.-)([^\\]-([^\\%.]+))$")
 end
@@ -57,13 +62,20 @@ end
 function main(filename)
     local path, fname, ext = SplitFilename(filename)
 
-	local mfile = mmap(filename);
+    print(string.format("Path: %s  Name: %s  Ext: %s", path, fname, ext))
+	
+    local mfile = mmap(filename);
 	if not mfile then 
 		print("Error trying to map: ", filename)
 	end
+    local bs = binstream(mfile:getPointer(), mfile.size, 0, true);
 
-    local bs = binstream(mfile:getPointer(), mfile.size, 0, true)
+    local info = parse_pdb(bs)
+    --decompose(bs, info, path)
 
+
+
+--[[
     local dirname = fname.."_streams"
     local success, err = win32.createDirectory(dirname)
 print("DIRECTORY: ", dirname)
@@ -75,6 +87,7 @@ print("DIRECTORY: ", dirname)
 	end
 
     decompose(bs, info, dirname);
+--]]
 end
 
 main(filename)

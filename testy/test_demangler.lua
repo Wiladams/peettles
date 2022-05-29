@@ -189,4 +189,5 @@ end
 
 --main(longcases)
 --main(shortcases)
-main(classcases)
+--main(classcases)
+simple("?_C_str@?$_Yarn@D@std@@QEBAPEBDXZ")

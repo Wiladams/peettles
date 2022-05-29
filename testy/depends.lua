@@ -28,6 +28,7 @@ local COFF = require("peettles.parse_COFF")
 local coff_utils = require("peettles.coff_utils")
 
 local FileSystem = require("FileSystem");
+local fileiterator = require("fileiterator")
 local funk = require("funk")()
 
 local argv = {...}
@@ -38,56 +39,7 @@ local filter = argv[2]
 local pathfilter = basepath..'\\'..filter
 
 
---[[
-local function filelist(basepath, filter)
-    local wfs = FileSystem(basepath);
-    local pathfilter = basepath..'\\'..filter
-    for entry in wfs:getItems(pathfilter) do
-        local filename = basepath..'\\'..entry.Name
-    end
-end
 
-local function file_iter_gen(param, handle)
-
-	if not handle:isValid() then 
-		return nil;
-	end
-
-    local value = {
-        BasePath = param.BasePath;
-        Attributes = param.FileData.dwFileAttributes;
-        Name = w32.toAnsi(param.FileData.cFileName);
-        Size = (param.FileData.nFileSizeHigh * (MAXDWORD+1)) + param.FileData.nFileSizeLow;
-        };
-
-    -- move to the next one before we return 
-    local status = k32Lib.FindNextFileW(handle.Handle, param.FileData);
-    local nextHandle = FsFindFileHandle(rawHandle);
-
-    return nextHandle, value;
-end
-
-local function iterateFiles(basepath, filter)
-    local pattern = basepath..'\\'..filter
-    local lpFileName = w32.toUnicode(pattern);
-    local fInfoLevelId = ffi.C.FindExInfoBasic;
-    local lpFindFileData = ffi.new("WIN32_FIND_DATAW");
-	local fSearchOp = ffi.C.FindExSearchNameMatch;
-    local lpSearchFilter = nil;
-    local dwAdditionalFlags = 0;
-
-    local rawHandle = k32Lib.FindFirstFileExW(lpFileName,
-        fInfoLevelId,
-        lpFindFileData,
-        fSearchOp,
-    lpSearchFilter,
-    dwAdditionalFlags);
-
-    local handle = FsFindFileHandle(rawHandle);
-
-    return file_iter_gen, {BasePath = basepath, Filter = filter, FileData = lpFindFileData}, handle
-end
---]]
 
 --[[
     gatherHistogram()
@@ -118,14 +70,23 @@ local function prepareHistogram(combos)
     local res = {}
 
     each(function(k,v) res[#res+1] = {key = k, value = v} end, combos)
-    --for k, v in pairs(combos) do
-    --        table.insert(res, {name = k, count = v})
-    --end
+
     return res
 end
 
-local function gatherHistogram(basepath, filter)
+-- Convert a path to a PE info structure
+local function pathToPEInfo(fullpath)
+    local mfile = mmap(fullpath);
+    if mfile then 
+        local bs = binstream(mfile:getPointer(), mfile.size, 0, true);
+        local info, err = peparser:fromStream(bs);
+        return info
+    else
+        return {}
+    end
+end
 
+local function gatherHistogram(basepath, filter)
 
     local combos = {}
 
@@ -151,6 +112,29 @@ local function gatherHistogram(basepath, filter)
 end
 
 
+local function projectFullPath(entry) return entry.FullPath end
+local function projectImports(entry) return entry.PE.Content.Imports end
+
+    -- iterate all files (take for convenience)
+    -- project just the full path (path+filename)
+    -- project each file as a PE info structure
+    -- project only the structure's imports table
+    -- and add the import to the combos dictionary
+local function gatherHistory(basepath, filter)
+
+    local combos = {}
+
+    local function handleImports(imports)
+        addImports(imports, combos)
+    end
+
+    each(handleImports,  map(projectImports, map(pathToPEInfo, map(projectFullPath, fileiterator(basepath, filter)))))
+
+    local hist = prepareHistogram(combos, hist)
+
+    return hist
+end
+
 local function printByName(combo)
     print(string.format("%s, %4d", combo.key, combo.value))
 end
@@ -172,7 +156,8 @@ end
 
 -- A couple of processing chains
 -- We want to see which functions are being called, alphabetically
-iter(sortAscendingByName(gatherHistogram(basepath, filter))):each(printByName)
+--iter(sortAscendingByName(gatherHistogram(basepath, filter))):each(printByName)
+iter(sortAscendingByName(gatherHistory(basepath, filter))):each(printByName)
 
 -- we want to see which functions are being called the most first
 -- take the top 50

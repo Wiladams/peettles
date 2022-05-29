@@ -3,8 +3,9 @@ local ffi = require("ffi");
 local bit = require("bit");
 local band = bit.band;
 
-local w32 = require("peettles.w32")
 local Collections = require("Collections");
+
+local w32 = require("peettles.w32")
 local enum = require("peettles.enum")
 
 ffi.cdef[[
@@ -167,7 +168,9 @@ ffi.metatype(FsFindFileHandle, FsFindFileHandle_mt);
 	File System File Iterator
 --]]
 
-local FileSystemItem = {}
+local FileSystemItem = {
+	FsFindFileHandle = FsFindFileHandle;
+}
 setmetatable(FileSystemItem, {
 	__call = function(self, ...)
 		return self:new(...);

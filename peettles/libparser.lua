@@ -11,7 +11,7 @@ local band = bit.band;
 local binstream = require("peettles.binstream")
 local peenums = require("peettles.penums")
 local putils = require("peettles.print_utils")
-local parse_COFF = require("peettles.parse_COFF")
+local COFF = require("peettles.parse_COFF")
 
 local isspace = putils.isspace;
 
@@ -250,7 +250,7 @@ function parser.parse(self, bs)
         end
 
         -- It should be a COFF section, so read that next
-        member.COFF, err = parse_COFF(bs)
+        member.COFF, err = COFF.parse_COFF(bs)
         
         table.insert(self.Members, member);
     end

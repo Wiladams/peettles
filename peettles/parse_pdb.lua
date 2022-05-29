@@ -36,12 +36,14 @@ local function calcPageForOffset(numBytes, alignment)
 end
 
 -- Read 'numEntries' worth of continguous uint32_t records
+-- indexed from 0
 local function readDWORDArray(ms, numEntries, res)
     res = res or {}
 
     for counter=1,numEntries do
         local index = ms:readUInt32();
-        table.insert(res, index);
+        res[counter-1] = index;
+        --table.insert(res, index);
     end
 
     return res;
@@ -66,23 +68,25 @@ local streamNames = {
     For now we assume that single block, but really 
     the number is determined by hdr.NumberOfBlocks 
 ]]
-local function readRootStream(ms, hdr, res)
+local function readRootDirectory(ms, info, res)
     res = res or {}
     
 
-    local firstPageIdx = hdr.BlockMap[1]
-    ms:seek(firstPageIdx * hdr.BlockSize)
+    local firstPageIdx = info.BlockMap[0]
+    ms:seek(firstPageIdx * info.BlockSize)
+
+    -- Read number of streams
     res.NumberOfStreams = ms:readDWORD();
-
+    -- table to hold actual stream information
     res.Streams = {}
-
-
+print("Number of streams: ", res.NumberOfStreams)
+--[[
     -- Get individual stream meta data
     for counter = 1,res.NumberOfStreams do 
         local strmLength = ms:readDWORD();
-        local numBlocks = calcNumberOfBlocks(strmLength, hdr.BlockSize);
+        local numBlocks = calcNumberOfBlocks(strmLength, info.BlockSize);
 
---print(" STREAM LENGTH: ", counter, strmLength, numBlocks)
+print(" STREAM LENGTH: ", counter, strmLength, numBlocks)
         --table.insert(res.Streams, {StreamLength = strmLength, NumberOfBlocks = numBlocks})
         local name = streamNames[counter-1]
         --print("NAME: ", name)
@@ -103,22 +107,13 @@ local function readRootStream(ms, hdr, res)
     -- Read in the BlockMap for each stream
     for counter = 1,res.NumberOfStreams do
         local strm = res.Streams[counter-1]; 
-        strm.BlockMap = readDWORDArray(ms, strm.NumberOfBlocks)
+        strm.BlockMap = {}
+        local success, err = readDWORDArray(ms, strm.NumberOfBlocks, strm.BlockMap);
     end
-
+--]]
     return res;
 end
 
-
-local function readRootBlockMap(ms, hdr, res)
-    res = res or {}
-    local fileOffset = hdr.BlockMapAddress * hdr.BlockSize
-    ms:seek(fileOffset)
-
-    readDWORDArray(ms, hdr.NumberOfBlocks, res)
-
-    return res;
-end
 
 -- The .pdb file begins with a 'superblock'
 -- which is essentially a 'root' directory to
@@ -131,30 +126,52 @@ local function readSuperBlock(ms, res)
     res.Signature = ms:readBytes(SigSize_PDB7);
     res.BlockSize = ms:readDWORD();
     res.FreeBlockMapBlock = ms:readDWORD();
-    res.NumBlocksInFile = ms:readDWORD();
-
-    -- Superblock header
-    res.StreamLength = ms:readDWORD();
-    res.mpspnpn = ms:readDWORD();           -- unknown what this is for
-    res.BlockMapAddress = ms:readUInt32();  -- Index (block number) of block map
+    res.NumBlocksInFile = ms:readDWORD();         -- Number of blocks in file
 
     -- Calculated fields
     res.SignatureString = ffi.string(res.Signature,24)
-    res.NumberOfBlocks = calcNumberOfBlocks(res.StreamLength, res.BlockSize);
     res.FileSize = res.NumBlocksInFile * res.BlockSize;
 
-    -- The BlockMap tells us where the pages are
-    -- that comprise the actual directory structure
-    -- it can be located anywhere in the file
-    res.BlockMap = readRootBlockMap(ms, res)
+    --print("Signature: ", res.Signature)
+    -- print("SignatureString: ", res.SignatureString)
+    --print("BlockSize: ", res.BlockSize)
+    --print("FreeBlockMapBlock: ", res.FreeBlockMapBlock)
+    --print("NumBlocksInFile: ", res.NumBlocksInFile)
+    --print("FILE SIZE:" , res.FileSize)
+
+    -- Superblock header
+    res.NumDirectoryBytes = ms:readDWORD(); -- Size of the stream directory 
+    res.mpspnpn = ms:readDWORD();           -- unknown what this is for
+    res.BlockMapAddress = ms:readUInt32();  -- Index (block number) of block map
+    res.NumBlockMapBlocks = math.ceil(res.NumDirectoryBytes / res.BlockSize);
+
+    print("NumDirectoryBytes: ", res.NumDirectoryBytes)
+    --print("mpspnpn: ", res.mpspnpn)
+    --print("BlockMapAddress: ", string.format("0x%x",res.BlockMapAddress))
+    print("NumBlockMapBlocks: ", res.NumBlockMapBlocks)
+
+    -- Read the BlockMap, so we can later read the actual
+    -- stream directory
+    res.BlockMap = {}
+
+    local fileOffset = res.BlockMapAddress * res.BlockSize
+    ms:seek(fileOffset)
+
+    readDWORDArray(ms, res.NumBlockMapBlocks, res.BlockMap);
+
+    print("BlockMap[0]: ", res.BlockMap[0])
+    print("BlockMap[1]: ", res.BlockMap[1])
 
     return res;
 end
 
 local function parse_pdb(ms, res)
     res = res or {}
-    local hdr = readSuperBlock(ms, res)
-    local rootStream = readRootStream(ms, hdr, hdr)
+    res.Header = {}
+    local success, err = readSuperBlock(ms, res.Header)
+
+    res.Directory = {}
+    local success, err = readRootDirectory(ms, res.Header, res.Directory)
 
     return res;
 end

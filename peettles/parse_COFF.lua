@@ -630,7 +630,7 @@ local exports = {
     readStringTable = readStringTable,
     readSymbolTable = readSymbolTable,
     readContentData = readContentData,
-    --parse_COFF = parse_COFF,
+    parse_COFF = parse_COFF,
 }
 
 return exports;
