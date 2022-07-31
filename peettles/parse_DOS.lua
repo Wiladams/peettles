@@ -108,6 +108,8 @@ local function parse_DOS(ms, res)
         return false, err;
     end
 
+    res.Signature = string.format("%c%c",res.Header.e_magic[0], res.Header.e_magic[1]);
+    
     -- figure out how big the DOS stub is, if there is one
     -- seek to where the DOS Stub should be.  It's located after the 
     -- DOS header, calculated as 'Size of header in paragraphs' * 16 (size of a paragraph)

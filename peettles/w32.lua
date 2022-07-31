@@ -301,7 +301,126 @@ ffi.cdef[[
     DWORD GetLastError(void);
 ]]
 
+--[[
+	Some File System Stuff
+]]
+ffi.cdef[[
+static const int MAX_PATH = 260;
+]]
 
+
+
+
+ffi.cdef[[
+typedef enum _STREAM_INFO_LEVELS {
+    FindStreamInfoStandard,
+    FindStreamInfoMaxInfoLevel
+} STREAM_INFO_LEVELS;
+
+typedef struct _WIN32_FIND_STREAM_DATA {
+    LARGE_INTEGER StreamSize;
+    WCHAR cStreamName[ MAX_PATH + 36 ];
+} WIN32_FIND_STREAM_DATA, *PWIN32_FIND_STREAM_DATA;
+
+HANDLE FindFirstStreamW(
+    LPCWSTR lpFileName,
+    STREAM_INFO_LEVELS InfoLevel,
+    LPVOID lpFindStreamData,
+    DWORD dwFlags);
+
+BOOL FindNextStreamW(
+    HANDLE hFindStream,
+	LPVOID lpFindStreamData
+);
+]]
+
+ffi.cdef[[
+typedef struct _WIN32_FIND_DATAA {
+    DWORD dwFileAttributes;
+    FILETIME ftCreationTime;
+    FILETIME ftLastAccessTime;
+    FILETIME ftLastWriteTime;
+    DWORD nFileSizeHigh;
+    DWORD nFileSizeLow;
+    DWORD dwReserved0;
+    DWORD dwReserved1;
+    CHAR   cFileName[ MAX_PATH ];
+    CHAR   cAlternateFileName[ 14 ];
+} WIN32_FIND_DATAA, *PWIN32_FIND_DATAA, *LPWIN32_FIND_DATAA;
+typedef struct _WIN32_FIND_DATAW {
+    DWORD dwFileAttributes;
+    FILETIME ftCreationTime;
+    FILETIME ftLastAccessTime;
+    FILETIME ftLastWriteTime;
+    DWORD nFileSizeHigh;
+    DWORD nFileSizeLow;
+    DWORD dwReserved0;
+    DWORD dwReserved1;
+    WCHAR  cFileName[ MAX_PATH ];
+    WCHAR  cAlternateFileName[ 14 ];
+} WIN32_FIND_DATAW, *PWIN32_FIND_DATAW, *LPWIN32_FIND_DATAW;
+]]
+
+ffi.cdef[[
+typedef enum _FINDEX_INFO_LEVELS {
+    FindExInfoStandard,
+    FindExInfoBasic,
+    FindExInfoMaxInfoLevel
+} FINDEX_INFO_LEVELS;
+
+typedef enum _FINDEX_SEARCH_OPS {
+    FindExSearchNameMatch,
+    FindExSearchLimitToDirectories,
+    FindExSearchLimitToDevices,
+    FindExSearchMaxSearchOp
+} FINDEX_SEARCH_OPS;
+
+static const int FIND_FIRST_EX_CASE_SENSITIVE  = 0x00000001;
+static const int FIND_FIRST_EX_LARGE_FETCH     = 0x00000002;
+]]
+
+ffi.cdef[[
+static const int FILE_ATTRIBUTE_READONLY             = 0x00000001;  
+static const int FILE_ATTRIBUTE_HIDDEN               = 0x00000002;  
+static const int FILE_ATTRIBUTE_SYSTEM               = 0x00000004;  
+static const int FILE_ATTRIBUTE_DIRECTORY            = 0x00000010;  
+static const int FILE_ATTRIBUTE_ARCHIVE              = 0x00000020;  
+static const int FILE_ATTRIBUTE_DEVICE               = 0x00000040;  
+static const int FILE_ATTRIBUTE_NORMAL               = 0x00000080;  
+static const int FILE_ATTRIBUTE_TEMPORARY            = 0x00000100;  
+static const int FILE_ATTRIBUTE_SPARSE_FILE          = 0x00000200;  
+static const int FILE_ATTRIBUTE_REPARSE_POINT        = 0x00000400;  
+static const int FILE_ATTRIBUTE_COMPRESSED           = 0x00000800;  
+static const int FILE_ATTRIBUTE_OFFLINE              = 0x00001000;  
+static const int FILE_ATTRIBUTE_NOT_CONTENT_INDEXED  = 0x00002000;  
+static const int FILE_ATTRIBUTE_ENCRYPTED            = 0x00004000;  
+static const int FILE_ATTRIBUTE_VIRTUAL              = 0x00010000;  
+]]
+
+ffi.cdef[[
+HANDLE
+FindFirstFileExW(
+  LPCWSTR lpFileName,
+  FINDEX_INFO_LEVELS fInfoLevelId,
+  LPVOID lpFindFileData,
+  FINDEX_SEARCH_OPS fSearchOp,
+  LPVOID lpSearchFilter,
+  DWORD dwAdditionalFlags);
+
+BOOL
+FindNextFileW(
+      HANDLE hFindFile,
+     LPWIN32_FIND_DATAW lpFindFileData
+	);
+
+BOOL
+FindClose(HANDLE hFindFile);
+]]
+
+
+--[[
+	Some convenient utilities
+]]
 local function toUnicode(in_Src, nsrcBytes)
 	if in_Src == nil then
 		return false, "no source specified";

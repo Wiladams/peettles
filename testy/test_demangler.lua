@@ -190,4 +190,4 @@ end
 --main(longcases)
 --main(shortcases)
 --main(classcases)
-simple("?_C_str@?$_Yarn@D@std@@QEBAPEBDXZ")
+simple("_initterm")
